@@ -1,3 +1,5 @@
+.claude/settings.local.json
+
 *.dxt
 *.ccx
 
@@ -29,3 +31,5 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+# Added by code-review-graph
+.code-review-graph/
