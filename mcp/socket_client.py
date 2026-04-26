@@ -21,11 +21,12 @@
 # SOFTWARE.
 
 import socketio
-import time
 import threading
 import json
+from dataclasses import dataclass
 from queue import Queue
 from pathlib import Path
+from typing import Optional
 import logger
 
 TOKEN_FILE = Path.home() / ".adb-mcp" / "token"
@@ -40,10 +41,16 @@ def _read_auth_token() -> str:
             "Make sure the proxy is running first."
         ) from e
 
-# Global configuration variables
-proxy_url = None
-proxy_timeout = None
-application = None
+
+@dataclass
+class _Config:
+    application: Optional[str] = None
+    proxy_url: Optional[str] = None
+    proxy_timeout: Optional[int] = None
+
+
+_config = _Config()
+_config_lock = threading.Lock()
 
 def send_message_blocking(command, timeout=None):
     """
@@ -57,9 +64,12 @@ def send_message_blocking(command, timeout=None):
     Returns:
         dict: The response received from the server, or None if no response
     """
-    # Use global variables
-    global application, proxy_url, proxy_timeout
-    
+    # Read config atomically under lock
+    with _config_lock:
+        application = _config.application
+        proxy_url = _config.proxy_url
+        proxy_timeout = _config.proxy_timeout
+
     # Check if configuration is set
     if not application or not proxy_url or not proxy_timeout:
         logger.log("Socket client not configured. Call configure() first.")
@@ -170,14 +180,12 @@ class AppError(Exception):
     pass
 
 def configure(app=None, url=None, timeout=None):
-    
-    global application, proxy_url, proxy_timeout
-    
-    if app:
-        application = app
-    if url:
-        proxy_url = url
-    if timeout:
-        proxy_timeout = timeout
-    
-    logger.log(f"Socket client configured: app={application}, url={proxy_url}, timeout={proxy_timeout}")
+    with _config_lock:
+        if app:
+            _config.application = app
+        if url:
+            _config.proxy_url = url
+        if timeout:
+            _config.proxy_timeout = timeout
+
+    logger.log(f"Socket client configured: app={_config.application}, url={_config.proxy_url}, timeout={_config.proxy_timeout}")
