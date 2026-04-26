@@ -26,7 +26,7 @@ import json
 from dataclasses import dataclass
 from queue import Queue
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 import logger
 
 _log = logger.get_logger("socket_client")
@@ -54,7 +54,7 @@ class _Config:
 _config = _Config()
 _config_lock = threading.Lock()
 
-def send_message_blocking(command, timeout=None):
+def send_message_blocking(command: dict[str, Any], timeout: Optional[int] = None) -> Optional[dict[str, Any]]:
     """
     Blocking function that connects to a Socket.IO server, sends a message,
     waits for a response, then disconnects.
@@ -181,7 +181,7 @@ def send_message_blocking(command, timeout=None):
 class AppError(Exception):
     pass
 
-def configure(app=None, url=None, timeout=None):
+def configure(app: Optional[str] = None, url: Optional[str] = None, timeout: Optional[int] = None) -> None:
     with _config_lock:
         if app:
             _config.application = app
