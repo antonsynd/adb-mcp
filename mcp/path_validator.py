@@ -40,7 +40,9 @@ def validate_path(path: str, must_exist: bool = False) -> str:
         ValueError: If any check fails.
     """
     if not isinstance(path, str) or not path:
-        raise ValueError(f"'path' must be a non-empty string, got {type(path).__name__}")
+        raise ValueError(
+            f"'path' must be a non-empty string, got {type(path).__name__}"
+        )
 
     if "\x00" in path:
         raise ValueError("'path' must not contain null bytes")

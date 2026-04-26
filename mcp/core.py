@@ -1,10 +1,12 @@
 import threading
 from typing import Any
+
 import logger
 
 _lock = threading.Lock()
 _application: str | None = None
 _socket_client: Any = None
+
 
 def init(app: str, socket: Any) -> None:
     global _application, _socket_client
@@ -27,6 +29,6 @@ def createCommand(action: str, options: dict[str, Any]) -> dict[str, Any]:
 def sendCommand(command: dict[str, Any]) -> dict[str, Any]:
     with _lock:
         sc = _socket_client
-    response = sc.send_message_blocking(command)
+    response: dict[str, Any] = sc.send_message_blocking(command)
     logger.log(f"Final response: {response['status']}")
     return response

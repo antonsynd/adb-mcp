@@ -20,12 +20,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from mcp.server.fastmcp import FastMCP
-from core import init, sendCommand, createCommand
-from validators import validate_string
-import socket_client
-import sys
 import os
+import sys
+
+import socket_client
+from core import createCommand, init, sendCommand
+from mcp.server.fastmcp import FastMCP
+from validators import validate_string
 
 # Create an MCP server
 mcp_name = "Adobe After Effects MCP Server"
@@ -36,13 +37,10 @@ APPLICATION = "aftereffects"
 PROXY_URL = os.environ.get("ADB_MCP_PROXY_URL", "http://localhost:3001")
 PROXY_TIMEOUT = int(os.environ.get("ADB_MCP_PROXY_TIMEOUT", "20"))
 
-socket_client.configure(
-    app=APPLICATION, 
-    url=PROXY_URL,
-    timeout=PROXY_TIMEOUT
-)
+socket_client.configure(app=APPLICATION, url=PROXY_URL, timeout=PROXY_TIMEOUT)
 
 init(APPLICATION, socket_client)
+
 
 @mcp.tool()
 def execute_extend_script(script_string: str):
@@ -54,7 +52,7 @@ def execute_extend_script(script_string: str):
     as an error object.
 
     Args:
-        script_string (str): The ExtendScript code to execute. Must use 'return' to 
+        script_string (str): The ExtendScript code to execute. Must use 'return' to
                            send results back.
 
     Returns:
@@ -74,10 +72,9 @@ def execute_extend_script(script_string: str):
         result = execute_extend_script(script)
     """
     validate_string(script_string, 100_000, "script_string")
-    command = createCommand("executeExtendScript", {
-        "scriptString": script_string
-    })
+    command = createCommand("executeExtendScript", {"scriptString": script_string})
     return sendCommand(command)
+
 
 @mcp.resource("config://get_instructions")
 def get_instructions() -> str:
@@ -93,7 +90,6 @@ def get_instructions() -> str:
     3. Read the API call info to understand required arguments and return shapes.
     4. Before manipulating anything, ensure a document is open and active.
     """
-
 
 
 # AfterEffectsd Blend Modes (for future use)
@@ -134,5 +130,5 @@ BLEND_MODES = [
     "STENCIL_ALPHA",
     "STENCIL_LUMA",
     "SUBTRACT",
-    "VIVID_LIGHT"
+    "VIVID_LIGHT",
 ]

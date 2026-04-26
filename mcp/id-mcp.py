@@ -20,17 +20,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from mcp.server.fastmcp import FastMCP
-from core import init, sendCommand, createCommand
-from validators import validate_string, validate_number
-import socket_client
-import sys
 import os
+import sys
 
-#logger.log(f"Python path: {sys.executable}")
-#logger.log(f"PYTHONPATH: {os.environ.get('PYTHONPATH')}")
-#logger.log(f"Current working directory: {os.getcwd()}")
-#logger.log(f"Sys.path: {sys.path}")
+import socket_client
+from core import createCommand, init, sendCommand
+from mcp.server.fastmcp import FastMCP
+from validators import validate_number, validate_string
+
+# logger.log(f"Python path: {sys.executable}")
+# logger.log(f"PYTHONPATH: {os.environ.get('PYTHONPATH')}")
+# logger.log(f"Current working directory: {os.getcwd()}")
+# logger.log(f"Sys.path: {sys.path}")
 
 
 # Create an MCP server
@@ -42,57 +43,58 @@ APPLICATION = "indesign"
 PROXY_URL = os.environ.get("ADB_MCP_PROXY_URL", "http://localhost:3001")
 PROXY_TIMEOUT = int(os.environ.get("ADB_MCP_PROXY_TIMEOUT", "20"))
 
-socket_client.configure(
-    app=APPLICATION, 
-    url=PROXY_URL,
-    timeout=PROXY_TIMEOUT
-)
+socket_client.configure(app=APPLICATION, url=PROXY_URL, timeout=PROXY_TIMEOUT)
 
 init(APPLICATION, socket_client)
 
+
 @mcp.tool()
 def create_document(
-   width: int, 
-   height: int, 
-   pages: int = 0,
-   pages_facing: bool = False,
-   columns: dict = {"count": 1, "gutter": 12},
-   margins: dict = {"top": 36, "bottom": 36, "left": 36, "right": 36}
+    width: int,
+    height: int,
+    pages: int = 0,
+    pages_facing: bool = False,
+    columns: dict = {"count": 1, "gutter": 12},
+    margins: dict = {"top": 36, "bottom": 36, "left": 36, "right": 36},
 ):
-   """
-   Creates a new InDesign document with specified dimensions and layout settings.
-   
-   Args:
-       width (int): Document width in points (1 point = 1/72 inch)
-       height (int): Document height in points
-       pages (int, optional): Number of pages in the document. Defaults to 0.
-       pages_facing (bool, optional): Whether to create facing pages (spread layout). 
-           Defaults to False.
-       columns (dict, optional): Column layout configuration with keys:
-           - count (int): Number of columns per page
-           - gutter (int): Space between columns in points
-           Defaults to {"count": 1, "gutter": 12}.
-       margins (dict, optional): Page margin settings in points with keys:
-           - top (int): Top margin
-           - bottom (int): Bottom margin  
-           - left (int): Left margin
-           - right (int): Right margin
-           Defaults to {"top": 36, "bottom": 36, "left": 36, "right": 36}.
-   
-   Returns:
-       dict: Result of the command execution from the InDesign UXP plugin
-   """
-   command = createCommand("createDocument", {
-       "intent": "WEB_INTENT",
-       "pageWidth": width,
-       "pageHeight": height,
-       "margins": margins,
-       "columns": columns,
-       "pagesPerDocument": pages,
-       "pagesFacing": pages_facing
-   })
-   
-   return sendCommand(command)
+    """
+    Creates a new InDesign document with specified dimensions and layout settings.
+
+    Args:
+        width (int): Document width in points (1 point = 1/72 inch)
+        height (int): Document height in points
+        pages (int, optional): Number of pages in the document. Defaults to 0.
+        pages_facing (bool, optional): Whether to create facing pages (spread layout).
+            Defaults to False.
+        columns (dict, optional): Column layout configuration with keys:
+            - count (int): Number of columns per page
+            - gutter (int): Space between columns in points
+            Defaults to {"count": 1, "gutter": 12}.
+        margins (dict, optional): Page margin settings in points with keys:
+            - top (int): Top margin
+            - bottom (int): Bottom margin
+            - left (int): Left margin
+            - right (int): Right margin
+            Defaults to {"top": 36, "bottom": 36, "left": 36, "right": 36}.
+
+    Returns:
+        dict: Result of the command execution from the InDesign UXP plugin
+    """
+    command = createCommand(
+        "createDocument",
+        {
+            "intent": "WEB_INTENT",
+            "pageWidth": width,
+            "pageHeight": height,
+            "margins": margins,
+            "columns": columns,
+            "pagesPerDocument": pages,
+            "pagesFacing": pages_facing,
+        },
+    )
+
+    return sendCommand(command)
+
 
 @mcp.resource("config://get_instructions")
 def get_instructions() -> str:

@@ -20,16 +20,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from mcp.server.fastmcp import FastMCP, Image
-from core import init, sendCommand, createCommand
-from fonts import list_all_fonts_postscript
-import numpy as np
 import base64
-import socket_client
-import sys
 import os
+import sys
 
-FONT_LIMIT = 1000 #max number of font names to return to AI
+import numpy as np
+
+import socket_client
+from core import createCommand, init, sendCommand
+from fonts import list_all_fonts_postscript
+from mcp.server.fastmcp import FastMCP, Image
+
+FONT_LIMIT = 1000  # max number of font names to return to AI
 
 mcp_name = "Adobe Photoshop Batch Play MCP Server"
 mcp = FastMCP(mcp_name, log_level="ERROR")
@@ -39,13 +41,10 @@ APPLICATION = "photoshop"
 PROXY_URL = os.environ.get("ADB_MCP_PROXY_URL", "http://localhost:3001")
 PROXY_TIMEOUT = int(os.environ.get("ADB_MCP_PROXY_TIMEOUT", "20"))
 
-socket_client.configure(
-    app=APPLICATION, 
-    url=PROXY_URL,
-    timeout=PROXY_TIMEOUT
-)
+socket_client.configure(app=APPLICATION, url=PROXY_URL, timeout=PROXY_TIMEOUT)
 
 init(APPLICATION, socket_client)
+
 
 @mcp.tool()
 def call_batch_play_command(commands: list):
@@ -87,12 +86,7 @@ def call_batch_play_command(commands: list):
     if not commands:
         raise ValueError("commands cannot be empty.")
 
-    command = createCommand(
-        "executeBatchPlayCommand",
-        {
-            "commands": commands
-        }
-    )
+    command = createCommand("executeBatchPlayCommand", {"commands": commands})
 
     return sendCommand(command)
 
@@ -154,27 +148,28 @@ def get_instructions() -> str:
     fonts: {", ".join(font_names[:FONT_LIMIT])}
     """
 
+
 font_names = list_all_fonts_postscript()
 
 interpolation_methods = [
-   "AUTOMATIC",
-   "BICUBIC",
-   "BICUBICSHARPER",
-   "BICUBICSMOOTHER",
-   "BILINEAR",
-   "NEARESTNEIGHBOR"
+    "AUTOMATIC",
+    "BICUBIC",
+    "BICUBICSHARPER",
+    "BICUBICSMOOTHER",
+    "BILINEAR",
+    "NEARESTNEIGHBOR",
 ]
 
 anchor_positions = [
-   "BOTTOMCENTER",
-   "BOTTOMLEFT", 
-   "BOTTOMRIGHT", 
-   "MIDDLECENTER", 
-   "MIDDLELEFT", 
-   "MIDDLERIGHT", 
-   "TOPCENTER", 
-   "TOPLEFT", 
-   "TOPRIGHT"
+    "BOTTOMCENTER",
+    "BOTTOMLEFT",
+    "BOTTOMRIGHT",
+    "MIDDLECENTER",
+    "MIDDLELEFT",
+    "MIDDLERIGHT",
+    "TOPCENTER",
+    "TOPLEFT",
+    "TOPRIGHT",
 ]
 
 justification_modes = [
@@ -184,7 +179,7 @@ justification_modes = [
     "LEFT",
     "LEFTJUSTIFIED",
     "RIGHT",
-    "RIGHTJUSTIFIED"
+    "RIGHTJUSTIFIED",
 ]
 
 alignment_modes = [
@@ -193,7 +188,7 @@ alignment_modes = [
     "RIGHT",
     "TOP",
     "CENTER_VERTICAL",
-    "BOTTOM"
+    "BOTTOM",
 ]
 
 blend_modes = [
@@ -224,5 +219,5 @@ blend_modes = [
     "SCREEN",
     "SOFTLIGHT",
     "SUBTRACT",
-    "VIVIDLIGHT"
+    "VIVIDLIGHT",
 ]

@@ -20,8 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
 import logging
+import sys
 
 # Configure root logger to write to stderr with ISO timestamps and log level
 _handler = logging.StreamHandler(sys.stderr)
@@ -46,4 +46,3 @@ def log(message: str, filter_tag: str = "LOGGER") -> None:
 def get_logger(name: str) -> logging.Logger:
     """Return a child logger under the adb_mcp namespace."""
     return logging.getLogger(f"adb_mcp.{name}")
-
