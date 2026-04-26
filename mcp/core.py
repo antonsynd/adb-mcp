@@ -29,6 +29,8 @@ def createCommand(action: str, options: dict[str, Any]) -> dict[str, Any]:
 def sendCommand(command: dict[str, Any]) -> dict[str, Any]:
     with _lock:
         sc = _socket_client
-    response: dict[str, Any] = sc.send_message_blocking(command)
+    response: dict[str, Any] | None = sc.send_message_blocking(command)
+    if response is None:
+        raise RuntimeError("No response received from proxy")
     logger.log(f"Final response: {response['status']}")
     return response

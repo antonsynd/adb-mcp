@@ -103,10 +103,12 @@ function createRateLimiter(maxPerWindow, windowMs) {
 // Reject Socket.IO connections that don't present the correct auth token
 io.use((socket, next) => {
     const token = socket.handshake.auth && socket.handshake.auth.token;
-    if (!token || !crypto.timingSafeEqual(
-        Buffer.from(token),
-        Buffer.from(AUTH_TOKEN)
-    )) {
+    const tokenBuf = token ? Buffer.from(String(token)) : null;
+    const expectedBuf = Buffer.from(AUTH_TOKEN);
+    const valid = tokenBuf !== null &&
+        tokenBuf.length === expectedBuf.length &&
+        crypto.timingSafeEqual(tokenBuf, expectedBuf);
+    if (!valid) {
         logWarn(`Rejected unauthenticated connection from ${socket.handshake.address}`);
         return next(new Error("Unauthorized"));
     }
