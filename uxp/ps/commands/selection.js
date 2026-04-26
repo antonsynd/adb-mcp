@@ -252,7 +252,7 @@ const deleteSelection = async (command) => {
             },
         ];
         await action.batchPlay(commands, {});
-    });
+    }, "Delete Selection", { name: "Delete Selection (MCP)", target: app.activeDocument });
 };
 
 const fillSelection = async (command) => {

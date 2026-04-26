@@ -212,11 +212,13 @@ const _saveDocumentAs = async (filePath, fileType) => {
     });
 };
 
-const execute = async (callback, commandName = "Executing command...") => {
+const execute = async (callback, commandName = "Executing command...", historyStateInfo = undefined) => {
     try {
-        return await core.executeAsModal(callback, {
-            commandName: commandName,
-        });
+        const options = { commandName };
+        if (historyStateInfo) {
+            options.historyStateInfo = historyStateInfo;
+        }
+        return await core.executeAsModal(callback, options);
     } catch (e) {
         throw new Error(`Error executing command [modal] : ${e}`);
     }

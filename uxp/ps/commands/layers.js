@@ -214,7 +214,7 @@ const deleteLayer = async (command) => {
 
     await execute(async () => {
         layer.delete();
-    });
+    }, "Delete Layer", { name: "Delete Layer (MCP)", target: app.activeDocument });
 };
 
 const renameLayer = async (command) => {
@@ -391,7 +391,7 @@ const flattenAllLayers = async (command) => {
         let l = layers[0];
         l.allLocked = false;
         l.name = layerName;
-    });
+    }, "Flatten All Layers", { name: "Flatten All Layers (MCP)", target: app.activeDocument });
 };
 
 const getLayerBounds = async (command) => {
