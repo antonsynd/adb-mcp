@@ -123,7 +123,7 @@ You are reviewing the architectural quality of recent changes in the adb-mcp pro
 Architecture: MCP Server (Python) <-> WebSocket Proxy (Node, :3001) <-> UXP Plugin (inside Photoshop)
 
 Check the git diff to identify changed files:
-`git diff main...HEAD --name-only`
+`git diff mainline...HEAD --name-only`
 
 For each changed file, review for:
 
@@ -162,7 +162,7 @@ Output findings as: CRITICAL (must fix before merge), WARNING (should fix), SUGG
 You are auditing test coverage for recent changes in the adb-mcp project.
 
 1. Identify changed source files:
-   `git diff main...HEAD --name-only`
+   `git diff mainline...HEAD --name-only`
 
 2. For each changed source file, check if corresponding tests exist:
    - MCP server changes (mcp/*.py) -> test files in mcp/ or a tests/ directory
@@ -228,7 +228,7 @@ After all fixes are committed:
 2. `black --check mcp/` and `isort --check mcp/` — clean
 3. Verify every `createCommand()` action has a matching `commandHandlers` entry
 4. Verify `uxp/ps/manifest.json` has all required permissions
-5. `git diff main...HEAD --stat` — summarize all changes
+5. `git diff mainline...HEAD --stat` — summarize all changes
 
 If any final verification step fails, loop back to remediation. Maximum 3 remediation loops — if issues persist after 3 attempts, report them as unresolved.
 
@@ -294,5 +294,5 @@ After final verification passes:
 
 ### Files Changed (total, including plan implementation + fixes)
 
-(output of `git diff main...HEAD --stat`)
+(output of `git diff mainline...HEAD --stat`)
 ```

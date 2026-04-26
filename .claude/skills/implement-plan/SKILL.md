@@ -33,7 +33,7 @@ Before spawning any agents, perform these checks yourself:
 - Run `git status` — if there are uncommitted changes, warn the user and ask whether to proceed or stash first
 
 ### 4. Check for partially-completed work
-- Run `git diff main...HEAD --stat` to see what's already been changed on this branch
+- Run `git diff mainline...HEAD --stat` to see what's already been changed on this branch
 - If there are existing changes, note them so agents don't duplicate work
 
 ### 5. Establish baseline
@@ -152,5 +152,5 @@ After final verification:
 - **Final:** X passed, Y failed, Z skipped
 
 ### Files Changed
-(output of `git diff main...HEAD --stat`)
+(output of `git diff mainline...HEAD --stat`)
 ```
