@@ -142,7 +142,7 @@ def send_message_blocking(command, timeout=None):
             logger.log("response received...")
             try:
                 logger.log(json.dumps(response))
-            except:
+            except Exception:
                 logger.log(f"Response (not JSON-serializable): {response}")
 
             if response["status"] == "FAILURE":
@@ -162,7 +162,9 @@ def send_message_blocking(command, timeout=None):
         if sio.connected:
             sio.disconnect()
         # Wait for the thread to finish (should be quick after disconnect)
-        client_thread.join(timeout=1)
+        client_thread.join(timeout=5)
+        if client_thread.is_alive():
+            logger.log("[WARN] Socket client thread still alive after join timeout")
 
 class AppError(Exception):
     pass

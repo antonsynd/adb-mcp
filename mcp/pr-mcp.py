@@ -42,8 +42,8 @@ mcp = FastMCP(mcp_name, log_level="ERROR")
 print(f"{mcp_name} running on stdio", file=sys.stderr)
 
 APPLICATION = "premiere"
-PROXY_URL = 'http://localhost:3001'
-PROXY_TIMEOUT = 20
+PROXY_URL = os.environ.get("ADB_MCP_PROXY_URL", "http://localhost:3001")
+PROXY_TIMEOUT = int(os.environ.get("ADB_MCP_PROXY_TIMEOUT", "20"))
 
 socket_client.configure(
     app=APPLICATION, 
@@ -596,7 +596,7 @@ def add_gaussian_blur_effect(sequence_id: str, video_track_index: int, track_ite
     
     # Validate blur_dimensions parameter
     if blur_dimensions not in dimensions:
-        raise ValueError(f"Invalid blur_dimensions. ")
+        raise ValueError(f"Invalid blur_dimensions '{blur_dimensions}'. Must be one of: {list(dimensions.keys())}")
 
     command = createCommand("appendVideoFilter", {
         "sequenceId": sequence_id,

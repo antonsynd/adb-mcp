@@ -24,6 +24,7 @@ from mcp.server.fastmcp import FastMCP
 from core import init, sendCommand, createCommand
 import socket_client
 import sys
+import os
 
 #logger.log(f"Python path: {sys.executable}")
 #logger.log(f"PYTHONPATH: {os.environ.get('PYTHONPATH')}")
@@ -37,8 +38,8 @@ mcp = FastMCP(mcp_name, log_level="ERROR")
 print(f"{mcp_name} running on stdio", file=sys.stderr)
 
 APPLICATION = "indesign"
-PROXY_URL = 'http://localhost:3001'
-PROXY_TIMEOUT = 20
+PROXY_URL = os.environ.get("ADB_MCP_PROXY_URL", "http://localhost:3001")
+PROXY_TIMEOUT = int(os.environ.get("ADB_MCP_PROXY_TIMEOUT", "20"))
 
 socket_client.configure(
     app=APPLICATION, 

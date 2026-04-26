@@ -840,8 +840,8 @@ const harmonizeLayer = async (command) => {
                         "_value": "targetEnum"
                     }
                 ],
-                "documentID": 60,
-                "layerID": 7,
+                "documentID": app.activeDocument.id,
+                "layerID": layerId,
                 "prompt": "",
                 "serviceID": "gen_harmonize",
                 "serviceOptionsList": {

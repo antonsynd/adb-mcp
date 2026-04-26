@@ -150,23 +150,6 @@ const parseAndRouteCommand = async (command) => {
     return await f(command);
 };
 
-
-// Execute commands
-/*
-async function executeCommand(command) {
-    switch(command.action) {
-
-        case "getLayers":
-            return await getLayers();
-        
-        case "executeExtendScript":
-            return await executeExtendScript(command);
-        
-        default:
-            throw new Error(`Unknown command: ${command.action}`);
-    }
-}*/
-
 const commandHandlers = {
     getLayers,
     executeExtendScript

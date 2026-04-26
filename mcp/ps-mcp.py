@@ -42,8 +42,8 @@ mcp = FastMCP(mcp_name, log_level="ERROR")
 print(f"{mcp_name} running on stdio", file=sys.stderr)
 
 APPLICATION = "photoshop"
-PROXY_URL = 'http://localhost:3001'
-PROXY_TIMEOUT = 20
+PROXY_URL = os.environ.get("ADB_MCP_PROXY_URL", "http://localhost:3001")
+PROXY_TIMEOUT = int(os.environ.get("ADB_MCP_PROXY_TIMEOUT", "20"))
 
 socket_client.configure(
     app=APPLICATION, 

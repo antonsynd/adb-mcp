@@ -41,28 +41,6 @@ const getProjectInfo = async () => {
     }
 
 }
-/*
-const getProjectContentInfo2 = async () => {
-    let project = await app.Project.getActiveProject()
-
-    let root = await project.getRootItem()
-    let items = await root.getItems()
-    
-    let out = []
-    for(const item of items) {
-        console.log(item)
-
-        const b = app.FolderItem.cast(item)
-        
-        const isBin = b != undefined
-
-        //todo: it would be good to get more data / info here
-        out.push({name:item.name})
-    }
-
-    return out
-}
-    */
 
 const getProjectContentInfo = async () => {
     let project = await app.Project.getActiveProject()

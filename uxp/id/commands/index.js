@@ -112,7 +112,7 @@ const getActiveDocumentSettings = (command) => {
 }
 
 const checkRequiresActiveDocument = async (command) => {
-    if (!requiresActiveProject(command)) {
+    if (!requiresActiveDocument(command)) {
         return;
     }
 
