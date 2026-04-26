@@ -25,8 +25,12 @@ The proxy is the single chokepoint between MCP servers and Adobe plugins. Securi
 - Require clients to pass this token in the Socket.IO `auth` handshake option
 - Reject connections in the proxy's `connection` handler if `socket.handshake.auth.token` doesn't match
 - Update `socket_client.py` to read the token file and pass it during connect
-- Update all UXP and CEP `main.js` files to read/receive the token and pass it during connect
-- Add explicit CORS config to Socket.IO: `cors: { origin: "http://localhost:*" }`
+- Update all CEP `main.js` files to read the token file and pass it during connect
+- UXP plugins cannot read arbitrary filesystem paths (`~/.adb-mcp/token`) due to UXP's sandboxed filesystem — even with `localFileSystem: fullAccess`. Instead, the proxy should serve the token over a one-time HTTP endpoint at startup (e.g., `GET http://localhost:3001/__token`), or the token should be entered manually in the plugin panel UI. Alternatively, the proxy can issue a challenge-response during the Socket.IO handshake that only local plugins can answer (e.g., the proxy writes a nonce to a known plugin data folder path).
+- Add explicit CORS config to Socket.IO using a regex (Socket.IO passes this to the `cors` npm package, which does not support wildcards within origin strings):
+  ```js
+  cors: { origin: /^http:\/\/localhost(:\d+)?$/ }
+  ```
 
 **Validation:** Connect via `wscat` or a bare script without the token — connection must be refused.
 
@@ -42,6 +46,7 @@ The proxy is the single chokepoint between MCP servers and Adobe plugins. Securi
 - Reduce `maxHttpBufferSize` to `5 * 1024 * 1024` (5MB)
 - Add connection limit per IP (e.g., max 10 concurrent connections)
 - Add message rate limiting (e.g., max 30 messages/second per client) using a simple token bucket in the `command_packet` handler
+- Also rate-limit connection attempts and `register` events — the proxy broadcasts commands to all clients registered for an application (`sendToApplication` in `proxy.js:117-133`), so a rogue client that passes auth could silently eavesdrop on all commands for an app without sending any
 - Add `pingTimeout` and `pingInterval` options to disconnect idle clients
 
 ---
@@ -83,6 +88,8 @@ CEP is deprecated by Adobe. The current CEP extensions use ExtendScript, which h
 - `manifest.json` — declare permissions, require `allowCodeGenerationFromStrings: true`
 - `main.js` — Socket.IO client connecting to proxy, command dispatch loop
 - `commands/` — handler modules
+
+**Risk:** After Effects UXP scripting support has historically lagged behind Photoshop's. Before starting this migration, spike on whether AE's UXP runtime supports: Socket.IO client libraries, `AsyncFunction` / `new Function()` with `allowCodeGenerationFromStrings`, and sufficient DOM coverage for the existing curated tools (`getProjectInfo`, `getCompositions`, `getLayers`). If AE UXP is not mature enough, this migration should be deferred and the CEP extension retained with the Phase 1.1 auth token applied via its Node.js context.
 
 **REPL handler:** Same pattern as planned for Photoshop:
 ```javascript
@@ -166,8 +173,8 @@ These don't restrict what the REPL can do, but protect against accidental misuse
 
 **Fix:**
 - Create `validate_path(path: str, must_exist: bool = False) -> str`:
-  - Resolve via `pathlib.Path(path).resolve()` to eliminate `..` and symlinks
-  - Check resolved path is under user's home directory (configurable)
+  - Resolve via `pathlib.Path(path).resolve()` to collapse `..` segments and follow symlinks to their real targets (e.g., `~/link -> /etc/passwd` resolves to `/etc/passwd`)
+  - Check the **resolved** path is under user's home directory (configurable) — this catches both `..` traversal and symlinks that escape the boundary
   - Reject null bytes
 - Call in every curated tool that accepts a file path
 - JS side: validate before `fs.getEntryWithUrl()` in `uxp/ps/commands/core.js` and `utils.js`
@@ -178,17 +185,28 @@ These don't restrict what the REPL can do, but protect against accidental misuse
 
 ### 3.3 Protect Destructive Operations with History States
 
-**Files:** `uxp/ps/commands/layers.js` (lines 203, 231, 378), `uxp/ps/commands/core.js` (lines 452-462)
+**Files:** `uxp/ps/commands/layers.js` (lines 203, 378), `uxp/ps/commands/selection.js` (line 231), `uxp/ps/commands/utils.js` (line 215)
 
-**Problem:** `deleteLayer`, `flattenAllLayers`, `deleteSelection` execute immediately with no undo point.
+**Problem:** `deleteLayer`, `flattenAllLayers`, `deleteSelection` execute via the `execute()` wrapper which calls `core.executeAsModal()` but without `historyStateInfo` — so they create a modal scope but not a named, undoable history state.
 
 **Fix:**
-- Wrap destructive curated commands in Photoshop history states:
+- The existing `execute()` helper in `utils.js:215` already calls `core.executeAsModal()`. Extend it to accept and forward `historyStateInfo`:
   ```javascript
-  await app.activeDocument.suspendHistory(async () => {
-      layer.delete();
-  }, "Delete Layer (MCP)");
+  const execute = async (callback, commandName = "Executing command...", historyStateInfo = undefined) => {
+      const options = { commandName };
+      if (historyStateInfo) {
+          options.historyStateInfo = historyStateInfo;
+      }
+      return await core.executeAsModal(callback, options);
+  };
   ```
+- Update destructive commands to pass `historyStateInfo`:
+  ```javascript
+  await execute(async () => {
+      layer.delete();
+  }, "Delete Layer", { name: "Delete Layer (MCP)", target: app.activeDocument });
+  ```
+- Note: `suspendHistory()` is the ExtendScript/CEP API and does not exist in UXP. The UXP equivalent is `executeAsModal()` with `historyStateInfo`.
 - For `flattenAllLayers`: create a snapshot before flattening
 - Apply the same pattern in other app plugins where applicable
 

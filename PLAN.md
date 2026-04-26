@@ -2,6 +2,8 @@
 
 Fork of [mikechambers/adb-mcp](https://github.com/mikechambers/adb-mcp). Goal: expose a JavaScript REPL for Photoshop through MCP so an AI agent can send arbitrary JS code (UXP DOM API, batchPlay, etc.) and get results back.
 
+**Note:** This plan strips the project to Photoshop-only (Phase 3). `SECURITY_REMEDIATION.md` covers the full multi-app ecosystem. If both plans are active, Phase 3 here should be deferred or reconciled — the security remediation's CEP-to-UXP migration (Phase 2) assumes all apps are retained.
+
 ## Current State of the Fork
 
 The upstream repo has three tiers:
@@ -49,9 +51,18 @@ const executeScript = async (command) => {
     let options = command.options;
     let code = options.code;
 
-    let out = await execute(async () => {
+    // Catch syntax errors from AsyncFunction construction separately from
+    // runtime errors during execution — both should return structured errors
+    // so the AI agent can iterate, not unhandled exceptions.
+    let fn;
+    try {
         const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-        const fn = new AsyncFunction('app', 'action', 'imaging', 'constants', 'fs', code);
+        fn = new AsyncFunction('app', 'action', 'imaging', 'constants', 'fs', code);
+    } catch (e) {
+        throw new Error(`SyntaxError in provided code: ${e.message}`);
+    }
+
+    let out = await execute(async () => {
         return await fn(app, action, imaging, constants, fs);
     });
 
@@ -113,10 +124,15 @@ def get_canvas_snapshot() -> Image:
     """Returns a JPEG screenshot of the current Photoshop canvas."""
     command = createCommand("getDocumentImage", {})
     result = sendCommand(command)
-    return Image(data=base64.b64decode(result["response"]["base64Image"]), format="jpeg")
+    # The proxy returns the handler's result under the "command" key in the
+    # packet_response, with status at the top level. The actual response
+    # structure from sendCommand needs to be verified against the proxy's
+    # packet format — adjust the key path accordingly.
+    image_data = result["command"]["response"]["base64Image"]
+    return Image(data=base64.b64decode(image_data), format="jpeg")
 ```
 
-This already works via the existing `getDocumentImage` handler — just needs a clean MCP tool wrapper that returns an `Image` object directly.
+This already works via the existing `getDocumentImage` handler — just needs a clean MCP tool wrapper that returns an `Image` object directly. **Note:** The exact key path to `base64Image` depends on how the proxy wraps the plugin's response in `command_packet_response`. Verify by inspecting an actual response from `sendCommand` before finalizing.
 
 ### Phase 2: Improve the Socket Layer
 
@@ -127,6 +143,8 @@ File: `mcp/socket_client.py`
 Current behavior: each `send_message_blocking()` call creates a new Socket.IO client, connects, sends, waits, disconnects. For a REPL where you might send 10 commands in quick succession, this is wasteful.
 
 Change to: maintain a single persistent connection. Connect on first use, reuse for subsequent calls. Add reconnect logic if the connection drops. Keep the blocking request-response pattern (emit command, wait for response via queue) but skip the connect/disconnect overhead.
+
+**Failure strategy for in-flight commands:** If the connection drops while a command is awaiting a response, fail that command immediately with a clear error (e.g., "Connection lost while awaiting response — command may or may not have executed"). Do not silently requeue, since the command may have been partially executed on the plugin side. The caller (MCP tool) can decide whether to retry. Track pending commands by ID so the reconnect handler can fail all of them.
 
 **2.2 — Configurable timeout**
 
