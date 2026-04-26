@@ -23,6 +23,7 @@
 from mcp.server.fastmcp import FastMCP, Image
 from core import init, sendCommand, createCommand
 from fonts import list_all_fonts_postscript
+from validators import validate_string, validate_number, validate_list
 import numpy as np
 import base64
 import socket_client
@@ -105,6 +106,9 @@ def create_gradient_layer_style(
             - opacity (int): Level (0=transparent, 100=opaque).
             - midpoint (int): Transition bias (0-100, default 50).
     """
+    validate_number(angle, -180, 180, "angle")
+    validate_list(color_stops, 100, "color_stops")
+    validate_list(opacity_stops, 100, "opacity_stops")
 
     command = createCommand("createGradientLayerStyle", {
         "layerId":layer_id,
@@ -125,7 +129,8 @@ def duplicate_document(document_name: str):
         Args:
             document_name (str): Name for the new document being created
     """
-    
+    validate_string(document_name, 10_000, "document_name")
+
     command = createCommand("duplicateDocument", {
         "name":document_name
     })
@@ -149,7 +154,11 @@ def create_document(document_name: str, width: int, height:int, resolution:int, 
             fill_color (dict): dict defining the background color fill of the new document
             color_mode (str): Color mode for the new document
     """
-    
+    validate_string(document_name, 10_000, "document_name")
+    validate_number(width, 1, 32768, "width")
+    validate_number(height, 1, 32768, "height")
+    validate_number(resolution, 1, 3000, "resolution")
+
     command = createCommand("createDocument", {
         "name":document_name,
         "width":width,
@@ -177,7 +186,8 @@ def export_layers_as_png(layers_info: list[dict[str, str|int]]):
                    will be saved (e.g., "/path/to/directory/layername.png").
                    The parent directory must already exist or the export will fail.
     """
-    
+    validate_list(layers_info, 1000, "layers_info")
+
     command = createCommand("exportLayersAsPng", {
         "layersInfo":layers_info
     })
@@ -236,7 +246,8 @@ def group_layers(group_name: str, layer_ids: list[int]) -> list:
         RuntimeError: If the operation fails or times out.
 
     """
-
+    validate_string(group_name, 10_000, "group_name")
+    validate_list(layer_ids, 1000, "layer_ids")
 
     command = createCommand("groupLayers", {
         "groupName":group_name,
@@ -396,6 +407,7 @@ def harmonize_layer(layer_id:int,  new_layer_name:str, rasterize_layer:bool = Tr
             If not rasterized, the layer will remain a generative layer which
             allows the user to interact with it. True by default.
     """
+    validate_string(new_layer_name, 10_000, "new_layer_name")
 
     command = createCommand("harmonizeLayer", {
         "layerId":layer_id,
@@ -418,7 +430,8 @@ def rename_layers(
                 - "layer_id" (int): ID of the layer to be renamed.
                 - "new_layer_name" (str): New name for the layer.
     """
-    
+    validate_list(layer_data, 1000, "layer_data")
+
     command = createCommand("renameLayers", {
         "layerData":layer_data
     })
@@ -443,7 +456,9 @@ def scale_layer(
         anchor_position (str): The anchor position to rotate around,
         interpolation_method (str): Interpolation method to use when resampling the image
     """
-    
+    validate_number(width, 0, 3000, "width")
+    validate_number(height, 0, 3000, "height")
+
     command = createCommand("scaleLayer", {
         "layerId":layer_id,
         "width":width,
@@ -470,7 +485,8 @@ def rotate_layer(
         anchor_position (str): The anchor position to rotate around,
         interpolation_method (str): Interpolation method to use when resampling the image
     """
-    
+    validate_number(angle, -359, 359, "angle")
+
     command = createCommand("rotateLayer", {
         "layerId":layer_id,
         "angle":angle,
@@ -555,7 +571,9 @@ def generate_image(
         prompt (str): Prompt describing the image to be generated
         content_type (str): The type of image to be generated. Options include "photo", "art" or "none" (default)
     """
-    
+    validate_string(layer_name, 10_000, "layer_name")
+    validate_string(prompt, 10_000, "prompt")
+
     command = createCommand("generateImage", {
         "layerName":layer_name,
         "prompt":prompt,
@@ -587,6 +605,8 @@ def generative_fill(
     Returns:
         dict: Response from Photoshop containing the operation status and layer information
     """
+    validate_string(layer_name, 10_000, "layer_name")
+    validate_string(prompt, 10_000, "prompt")
 
     command = createCommand("generativeFill", {
         "layerName":layer_name,
@@ -903,6 +923,10 @@ def create_multi_line_text_layer(
         bounds (dict): text bounding box
         justification (str): text justification. Valid list available via get_option_info.
     """
+    validate_string(layer_name, 10_000, "layer_name")
+    validate_string(text, 10_000, "text")
+    validate_number(font_size, 1, 3000, "font_size")
+    validate_number(opacity, 0, 100, "opacity")
 
     command = createCommand("createMultiLineTextLayer", {
         "layerName":layer_name,
@@ -945,6 +969,10 @@ def create_single_line_text_layer(
         text_color (dict): Color of the text expressed in Red, Green, Blue values between 0 and 255
         position (dict): Position (dict with x, y values) where the text will be placed in the layer. Based on bottom left point of the text.
     """
+    validate_string(layer_name, 10_000, "layer_name")
+    validate_string(text, 10_000, "text")
+    validate_number(font_size, 1, 3000, "font_size")
+    validate_number(opacity, 0, 100, "opacity")
 
     command = createCommand("createSingleLineTextLayer", {
         "layerName":layer_name,
@@ -1071,7 +1099,9 @@ def set_layer_properties(
         fill_opacity (int): The fill opacity for the layer (0 - 100). Will ignore anny effects that have been applied to the layer.
         is_clipping_mask (bool): A boolean indicating whether this layer will be clipped to (masked by) the layer below it
     """
-    
+    validate_number(layer_opacity, 0, 100, "layer_opacity")
+    validate_number(fill_opacity, 0, 100, "fill_opacity")
+
     command = createCommand("setLayerProperties", {
         "layerId":layer_id,
         "blendMode":blend_mode,

@@ -24,6 +24,7 @@ from mcp.server.fastmcp import FastMCP, Image
 from PIL import Image as PILImage
 
 from core import init, sendCommand, createCommand
+from validators import validate_string, validate_number, validate_list
 import socket_client
 import sys
 import tempfile
@@ -198,6 +199,8 @@ def move_project_items_to_bin(item_names: list[str], bin_name: str):
             bin_name="Media Assets"
         )
     """
+    validate_list(item_names, 1000, "item_names")
+    validate_string(bin_name, 10_000, "bin_name")
     command = createCommand("moveProjectItemsToBin", {
         "itemNames": item_names,
         "binName": bin_name
@@ -597,6 +600,8 @@ def add_gaussian_blur_effect(sequence_id: str, video_track_index: int, track_ite
     # Validate blur_dimensions parameter
     if blur_dimensions not in dimensions:
         raise ValueError(f"Invalid blur_dimensions '{blur_dimensions}'. Must be one of: {list(dimensions.keys())}")
+
+    validate_number(blurriness, 0, 3000, "blurriness")
 
     command = createCommand("appendVideoFilter", {
         "sequenceId": sequence_id,

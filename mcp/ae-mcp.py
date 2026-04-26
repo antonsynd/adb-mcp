@@ -22,6 +22,7 @@
 
 from mcp.server.fastmcp import FastMCP
 from core import init, sendCommand, createCommand
+from validators import validate_string
 import socket_client
 import sys
 import os
@@ -72,6 +73,7 @@ def execute_extend_script(script_string: str):
         '''
         result = execute_extend_script(script)
     """
+    validate_string(script_string, 100_000, "script_string")
     command = createCommand("executeExtendScript", {
         "scriptString": script_string
     })
