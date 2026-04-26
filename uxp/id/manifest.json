@@ -72,7 +72,6 @@
   "requiredPermissions": {
     "network": {
       "domains": [
-        "all",
         "http://localhost:3001"
       ]
     },

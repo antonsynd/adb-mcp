@@ -5,6 +5,16 @@
 const csInterface = new CSInterface();
 const APPLICATION = "aftereffects";
 const PROXY_URL = "http://localhost:3001";
+const TOKEN_FILE = require("path").join(require("os").homedir(), ".adb-mcp", "token");
+
+function readAuthToken() {
+    try {
+        return require("fs").readFileSync(TOKEN_FILE, "utf8").trim();
+    } catch (e) {
+        log(`[ERROR] Cannot read auth token from ${TOKEN_FILE}: ${e.message}`);
+        return null;
+    }
+}
 
 
 let socket = null;
@@ -66,9 +76,11 @@ async function onCommandPacket(packet) {
 function connectToServer() {
     
     log(`Connecting to ${PROXY_URL}...`);
-    
+
+    const authToken = readAuthToken();
     socket = io(PROXY_URL, {
         transports: ["websocket", "polling"],
+        auth: { token: authToken },
     });
 
     socket.on("connect", () => {

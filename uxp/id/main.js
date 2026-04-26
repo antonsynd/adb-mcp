@@ -33,8 +33,17 @@ const {
 
 const APPLICATION = "indesign";
 const PROXY_URL = "http://localhost:3001";
+const TOKEN_URL = "http://localhost:3001/__token";
 
 let socket = null;
+
+async function fetchAuthToken() {
+    const response = await fetch(TOKEN_URL);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch auth token: ${response.status}`);
+    }
+    return await response.text();
+}
 
 const onCommandPacket = async (packet) => {
     let command = packet.command;
@@ -61,7 +70,10 @@ const onCommandPacket = async (packet) => {
     return out;
 };
 
-function connectToServer() {
+async function connectToServer() {
+    // Fetch auth token from proxy's HTTP endpoint before connecting
+    const authToken = await fetchAuthToken();
+
     // Create new Socket.IO connection
     const isWindows = require("os").platform() === "win32";
 
@@ -70,9 +82,11 @@ function connectToServer() {
               transports: ["polling"],
               upgrade: false,
               rememberUpgrade: false,
+              auth: { token: authToken },
           }
         : {
               transports: ["websocket"],
+              auth: { token: authToken },
           };
     console.log(isWindows);
     console.log(socketOptions);

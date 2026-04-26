@@ -34,8 +34,17 @@ const {
 
 const APPLICATION = "premiere";
 const PROXY_URL = "http://localhost:3001";
+const TOKEN_URL = "http://localhost:3001/__token";
 
 let socket = null;
+
+async function fetchAuthToken() {
+    const response = await fetch(TOKEN_URL);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch auth token: ${response.status}`);
+    }
+    return await response.text();
+}
 
 const onCommandPacket = async (packet) => {
     let command = packet.command;
@@ -66,10 +75,14 @@ const onCommandPacket = async (packet) => {
     return out;
 };
 
-function connectToServer() {
+async function connectToServer() {
+    // Fetch auth token from proxy's HTTP endpoint before connecting
+    const authToken = await fetchAuthToken();
+
     // Create new Socket.IO connection
     socket = io(PROXY_URL, {
         transports: ["websocket"],
+        auth: { token: authToken },
     });
 
     socket.on("connect", () => {

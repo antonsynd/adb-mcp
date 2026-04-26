@@ -25,7 +25,20 @@ import time
 import threading
 import json
 from queue import Queue
+from pathlib import Path
 import logger
+
+TOKEN_FILE = Path.home() / ".adb-mcp" / "token"
+
+def _read_auth_token() -> str:
+    """Read the auth token written by the proxy at startup."""
+    try:
+        return TOKEN_FILE.read_text().strip()
+    except OSError as e:
+        raise RuntimeError(
+            f"Cannot read auth token from {TOKEN_FILE}. "
+            "Make sure the proxy is running first."
+        ) from e
 
 # Global configuration variables
 proxy_url = None
@@ -57,6 +70,9 @@ def send_message_blocking(command, timeout=None):
     
     # Create a standard (non-async) SocketIO client with WebSocket transport only
     sio = socketio.Client(logger=False)
+    
+    # Read auth token
+    auth_token = _read_auth_token()
     
     # Use a queue to get the response from the event handler
     response_queue = Queue()
@@ -98,7 +114,7 @@ def send_message_blocking(command, timeout=None):
     # Connect in a separate thread to avoid blocking the main thread during connection
     def connect_and_wait():
         try:
-            sio.connect(proxy_url, transports=['websocket'])
+            sio.connect(proxy_url, transports=['websocket'], auth={"token": auth_token})
             # Keep the client running until disconnect is called
             sio.wait()
         except Exception as e:
