@@ -1,3 +1,6 @@
+<!-- Verified by /verify-plan on 2026-04-26 -->
+<!-- Verification result: PASS WITH CORRECTIONS -->
+
 # Security Remediation Plan
 
 Based on the comprehensive audit of the adb-mcp codebase completed 2026-04-26.
@@ -53,9 +56,9 @@ The proxy is the single chokepoint between MCP servers and Adobe plugins. Securi
 
 ### 1.3 Restrict UXP Plugin Network Permissions
 
-**Files:** `uxp/ps/manifest.json:72-77`, `uxp/pr/manifest.json:72-77`, `uxp/id/manifest.json:73-77`
+**Files:** `uxp/ps/manifest.json:72-77`, `uxp/pr/manifest.json:72-77`, `uxp/id/manifest.json:72-79`
 
-**Problem:** All plugins request `"domains": "all"` network access.
+**Problem:** All plugins request broad network access. PS and PR use `"domains": "all"` (a string). [CORRECTED: InDesign already uses an array format `["all", "http://localhost:3001"]` at lines 72-79, not a simple `"all"` string — the fix for ID only needs to remove `"all"` from the existing array.]
 
 **Fix:**
 - Change network domains to `["http://localhost:3001"]`
@@ -103,7 +106,7 @@ const executeScript = async (command) => {
 
 The injected globals will differ from Photoshop — AE's UXP DOM exposes `app.project`, composition items, layers via its own object model (no `batchPlay`).
 
-**Curated tools:** Port the existing `getProjectInfo`, `getCompositions`, `getLayers` handlers. They currently build ExtendScript strings and call `evalScript()` — rewrite them to use AE's UXP DOM directly.
+**Curated tools:** Port the existing `getLayers` handler (the only registered command handler in the CEP plugin's `commandHandlers`). [CORRECTED: `getProjectInfo` and `getCompositions` exist in `cep/com.mikechambers.ae/commands.js` but are NOT registered in `commandHandlers` (lines 170-172 only register `getLayers` and `executeExtendScript`). `getProjectInfo` is called from `main.js:54` to attach context to every response, not as a standalone command. `getCompositions` is not called anywhere. Consider whether to expose these as MCP tools or keep them as internal context helpers.] They currently build ExtendScript strings and call `evalScript()` — rewrite them to use AE's UXP DOM directly.
 
 **MCP server:** Update `mcp/ae-mcp.py` to replace `execute_extend_script` with `execute_script` (same interface as the PS REPL tool).
 
@@ -253,7 +256,7 @@ No urgency. Address as part of normal development.
 
 ### 4.3 Make Configuration Environment-Based
 
-**Files:** All MCP servers (lines ~44-46 each), `adb-proxy-socket/proxy.js:36`
+**Files:** All MCP server files (`ps-mcp.py:44-46`, `pr-mcp.py:44-46`, `ae-mcp.py:33-35`, `ai-mcp.py:33-35`, `id-mcp.py:39-41`, `ps-batch-play.py:38-40`), `adb-proxy-socket/proxy.js:36` [CORRECTED: line numbers vary per file, not ~44-46 for all; added `ps-batch-play.py` which was missing but also has hardcoded config]
 
 **Fix:**
 - Python: `PROXY_URL = os.environ.get("ADB_MCP_PROXY_URL", "http://localhost:3001")`
@@ -278,7 +281,7 @@ No urgency. Address as part of normal development.
 
 **File:** `uxp/id/commands/index.js:115`
 
-**Fix:** Change `requiresActiveProject(command)` to `requiresActiveDocument(command)`.
+**Fix:** Change `requiresActiveProject(command)` to `requiresActiveDocument(command)`. [CORRECTED: `requiresActiveProject` is not just the wrong function — it is completely undefined in this file. `requiresActiveDocument` is defined at line 127. This causes a ReferenceError at runtime for any command that is not `createDocument`.]
 
 ---
 
@@ -302,8 +305,8 @@ No urgency. Address as part of normal development.
 
 **Files:**
 - `uxp/pr/commands/index.js:44-65` — commented-out `getProjectContentInfo2`
-- `cep/com.mikechambers.ae/commands.js:154-173` — commented-out handlers
-- `cep/com.mikechambers.ai/commands.js:320-333` — commented-out execute command
+- `cep/com.mikechambers.ae/commands.js:154-168` — commented-out handlers [CORRECTED: was 154-173, but lines 170-173 are the live `commandHandlers` export — deleting those would break the extension]
+- `cep/com.mikechambers.ai/commands.js:323-337` — commented-out execute command [CORRECTED: was 320-333, but the comment block starts at line 323 (`/*`) and ends at line 337 (`}*/`); lines 319-320 are the end of the live `parseAndRouteCommand` function]
 
 **Fix:** Delete commented-out code. It lives in git history.
 
@@ -335,3 +338,41 @@ No urgency. Address as part of normal development.
 | Phase 2: CEP → UXP Migration | ~1-2 weeks | Nothing (but deploy after Phase 1) |
 | Phase 3: Input Hygiene | ~2-3 days | Nothing |
 | Phase 4: Code Quality | ~1 day | Nothing |
+
+---
+
+## Verification Summary
+
+**Result:** PASS WITH CORRECTIONS
+**Verified on:** 2026-04-26
+**Plan file:** SECURITY_REMEDIATION.md
+
+### Corrections Made
+
+1. **Phase 1.3 (InDesign manifest):** Changed line reference from `73-77` to `72-79`. Corrected problem description — InDesign's manifest already uses an array format `["all", "http://localhost:3001"]`, not the simple `"all"` string like PS and PR. Fix for ID only needs to remove `"all"` from the existing array.
+
+2. **Phase 2.1 (AE curated tools):** Corrected claim that `getProjectInfo`, `getCompositions`, `getLayers` are all command handlers. Only `getLayers` and `executeExtendScript` are registered in `commandHandlers` (lines 170-172). `getProjectInfo` is an internal function called from `main.js:54` to attach context to responses. `getCompositions` is defined but not called anywhere.
+
+3. **Phase 4.3 (Config line numbers):** Replaced `"lines ~44-46 each"` with per-file line numbers: `ps-mcp.py:44-46`, `pr-mcp.py:44-46`, `ae-mcp.py:33-35`, `ai-mcp.py:33-35`, `id-mcp.py:39-41`. Added missing `ps-batch-play.py:38-40`.
+
+4. **Phase 4.5 (InDesign bug):** Added clarification that `requiresActiveProject` is not just the wrong function — it is completely undefined in the file. This causes a ReferenceError at runtime, not just incorrect behavior.
+
+5. **Phase 4.8 (Dead code ranges):** Fixed `cep/com.mikechambers.ae/commands.js` from `154-173` to `154-168` — lines 170-173 are the live `commandHandlers` export. Fixed `cep/com.mikechambers.ai/commands.js` from `320-333` to `323-337` — lines 319-320 are the end of the live `parseAndRouteCommand` function.
+
+### Warnings
+
+1. **Phase 2.1:** Before starting the AE UXP migration, verify whether AE's UXP runtime supports Socket.IO client libraries and `AsyncFunction` constructor — the plan already notes this as a spike, which is the right approach.
+
+2. **Phase 2.1:** Consider whether `getProjectInfo` and `getCompositions` should be exposed as MCP tools in the new UXP plugin, or remain as internal context helpers as they are today in the CEP plugin.
+
+3. **Phase 1.1 (UXP token delivery):** The plan proposes three alternatives for delivering auth tokens to UXP plugins (HTTP endpoint, manual entry, challenge-response). A decision should be made before implementation to avoid rework.
+
+### Missing Steps Added
+
+1. **Phase 4.3:** `ps-batch-play.py` was not listed but has identical hardcoded config at lines 38-40 that needs the same environment variable treatment.
+
+### Unchecked Claims
+
+1. **Phase 2.1/2.2:** Claims about AE and Illustrator UXP DOM API availability (`app.project`, composition items, `app.activeDocument`, path items, artboards) cannot be verified from the codebase — these depend on Adobe's UXP runtime for each app, which requires live testing.
+
+2. **Phase 3.1:** Specific numeric ranges for validation (opacity 0-100, angle 0-360, radius 0-3000) were not verified against Adobe API documentation — these are reasonable defaults but should be confirmed against actual API constraints.
