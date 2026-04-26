@@ -25,6 +25,7 @@ from PIL import Image as PILImage
 
 from core import init, sendCommand, createCommand
 from validators import validate_string, validate_number, validate_list
+from path_validator import validate_path
 import socket_client
 import sys
 import tempfile
@@ -85,7 +86,8 @@ def save_project_as(file_path: str):
             Example: "/Users/username/Documents/project.prproj"
 
     """
-    
+    validate_path(file_path)
+
     command = createCommand("saveProjectAs", {
         "filePath":file_path
     })
@@ -101,7 +103,8 @@ def open_project(file_path: str):
             Example: "/Users/username/Documents/project.prproj"
 
     """
-    
+    validate_path(file_path, must_exist=True)
+
     command = createCommand("openProject", {
         "filePath":file_path
     })
@@ -168,6 +171,8 @@ def export_sequence(sequence_id: str, output_path: str, preset_path: str):
         
         IMPORTANT: The export may take an extended period of time, so if the call times out, it most likely means the export is still in progress.
     """
+    validate_path(output_path)
+    validate_path(preset_path, must_exist=True)
     command = createCommand("exportSequence", {
         "sequenceId": sequence_id,
         "outputPath": output_path,
@@ -562,7 +567,9 @@ def export_frame(sequence_id:str, file_path: str, seconds: int):
             where the frame should be captured. The frame closest to this time position
             will be extracted.
     """
-    
+    validate_path(file_path)
+    validate_number(seconds, 0, 86400, "seconds")
+
     command = createCommand("exportFrame", {
         "sequenceId": sequence_id,
         "filePath": file_path,

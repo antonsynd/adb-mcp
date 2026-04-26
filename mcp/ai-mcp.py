@@ -23,6 +23,7 @@
 from mcp.server.fastmcp import FastMCP
 from core import init, sendCommand, createCommand
 from validators import validate_string
+from path_validator import validate_path
 import socket_client
 import sys
 import os
@@ -83,7 +84,8 @@ def open_file(
     command_params = {
         "path": path
     }
-    
+    validate_path(path, must_exist=True)
+
     command = createCommand("openFile", command_params)
     return sendCommand(command)
 
@@ -154,6 +156,7 @@ def export_png(
     """
 
 
+    validate_path(path)
     # Only include matte and matteColor if needed
     command_params = {
         "path": path,

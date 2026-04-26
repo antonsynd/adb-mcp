@@ -24,6 +24,7 @@ from mcp.server.fastmcp import FastMCP, Image
 from core import init, sendCommand, createCommand
 from fonts import list_all_fonts_postscript
 from validators import validate_string, validate_number, validate_list
+from path_validator import validate_path
 import numpy as np
 import base64
 import socket_client
@@ -213,7 +214,8 @@ def save_document_as(file_path: str, file_type: str = "PSD"):
     Returns:
         dict: Response from the Photoshop operation indicating success status, and the path that the file was saved at
     """
-    
+    validate_path(file_path)
+
     command = createCommand("saveDocumentAs", {
         "filePath":file_path,
         "fileType":file_type
@@ -386,7 +388,8 @@ def place_image(
         layer_id (int): The id of the layer where the image will be placed.
         image_path (str): The file path to the image that will be placed on the layer.
     """
-    
+    validate_path(image_path, must_exist=True)
+
     command = createCommand("placeImage", {
         "layerId":layer_id,
         "imagePath":image_path
@@ -726,6 +729,7 @@ def open_photoshop_file(file_path: str):
     Raises:
         RuntimeError: If the file doesn't exist, is not accessible, or is in an unsupported format.
     """
+    validate_path(file_path, must_exist=True)
 
     command = createCommand("openFile", {
         "filePath":file_path
