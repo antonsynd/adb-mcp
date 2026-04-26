@@ -29,6 +29,8 @@ from pathlib import Path
 from typing import Optional
 import logger
 
+_log = logger.get_logger("socket_client")
+
 TOKEN_FILE = Path.home() / ".adb-mcp" / "token"
 
 def _read_auth_token() -> str:
@@ -72,7 +74,7 @@ def send_message_blocking(command, timeout=None):
 
     # Check if configuration is set
     if not application or not proxy_url or not proxy_timeout:
-        logger.log("Socket client not configured. Call configure() first.")
+        _log.error("Socket client not configured. Call configure() first.")
         return None
     
     # Use provided timeout or default
@@ -91,10 +93,11 @@ def send_message_blocking(command, timeout=None):
 
     @sio.event
     def connect():
-        logger.log(f"Connected to server with session ID: {sio.sid}")
+        _log.debug("Connected to server with session ID: %s", sio.sid)
         
         # Send the command
-        logger.log(f"Sending message to {application}: {command}")
+        action = command.get("action", "<unknown>") if isinstance(command, dict) else "<unknown>"
+        _log.info("Sending command '%s' to application '%s'", action, application)
         sio.emit('command_packet', {
             'type': "command",
             'application': application,
@@ -103,21 +106,24 @@ def send_message_blocking(command, timeout=None):
     
     @sio.event
     def packet_response(data):
-        logger.log(f"Received response: {data}")
+        status = data.get("status", "<unknown>") if isinstance(data, dict) else "<unknown>"
+        action = command.get("action", "<unknown>") if isinstance(command, dict) else "<unknown>"
+        _log.info("Received response for command '%s': status=%s", action, status)
+        _log.debug("Full response: %s", data)
         response_queue.put(data)
         # Disconnect after receiving the response
         sio.disconnect()
     
     @sio.event
     def disconnect():
-        logger.log("Disconnected from server")
+        _log.debug("Disconnected from server")
         # If we disconnect without response, put None in the queue
         if response_queue.empty():
             response_queue.put(None)
     
     @sio.event
     def connect_error(error):
-        logger.log(f"Connection error: {error}")
+        _log.error("Connection error: %s", error)
         connection_failed[0] = True
         response_queue.put(None)
     
@@ -128,7 +134,7 @@ def send_message_blocking(command, timeout=None):
             # Keep the client running until disconnect is called
             sio.wait()
         except Exception as e:
-            logger.log(f"Error: {e}")
+            _log.error("Error in socket thread: %s", e)
             connection_failed[0] = True
             if response_queue.empty():
                 response_queue.put(None)
@@ -142,18 +148,14 @@ def send_message_blocking(command, timeout=None):
     
     try:
         # Wait for a response or timeout
-        logger.log("waiting for response...")
+        _log.debug("Waiting for response (timeout=%ss)...", wait_timeout)
         response = response_queue.get(timeout=wait_timeout)
 
         if connection_failed[0]:
             raise RuntimeError(f"Error: Could not connect to {application} command proxy server. Make sure that the proxy server is running listening on the correct url {proxy_url}.")
 
         if response:
-            logger.log("response received...")
-            try:
-                logger.log(json.dumps(response))
-            except Exception:
-                logger.log(f"Response (not JSON-serializable): {response}")
+            _log.debug("Response received (JSON): %s", json.dumps(response, default=str))
 
             if response["status"] == "FAILURE":
                 raise AppError(f"Error returned from {application}: {response['message']}")
@@ -162,7 +164,7 @@ def send_message_blocking(command, timeout=None):
     except AppError:
         raise
     except Exception as e:
-        logger.log(f"Error waiting for response: {e}")
+        _log.error("Error waiting for response: %s", e)
         if sio.connected:
             sio.disconnect()
   
@@ -174,7 +176,7 @@ def send_message_blocking(command, timeout=None):
         # Wait for the thread to finish (should be quick after disconnect)
         client_thread.join(timeout=5)
         if client_thread.is_alive():
-            logger.log("[WARN] Socket client thread still alive after join timeout")
+            _log.warning("Socket client thread still alive after join timeout")
 
 class AppError(Exception):
     pass
@@ -188,4 +190,4 @@ def configure(app=None, url=None, timeout=None):
         if timeout:
             _config.proxy_timeout = timeout
 
-    logger.log(f"Socket client configured: app={_config.application}, url={_config.proxy_url}, timeout={_config.proxy_timeout}")
+    _log.info("Socket client configured: app=%s, url=%s, timeout=%s", _config.application, _config.proxy_url, _config.proxy_timeout)

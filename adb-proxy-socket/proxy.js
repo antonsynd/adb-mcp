@@ -33,6 +33,17 @@ const os = require("os");
 const app = express();
 const server = http.createServer(app);
 
+// Structured log helpers
+const log = (level, message) => {
+    const ts = new Date().toISOString();
+    const out = level === "ERROR" ? process.stderr : process.stdout;
+    out.write(`${ts} ${level} proxy : ${message}\n`);
+};
+const logInfo  = (msg) => log("INFO ", msg);
+const logWarn  = (msg) => log("WARN ", msg);
+const logError = (msg) => log("ERROR", msg);
+const logDebug = (msg) => log("DEBUG", msg);
+
 const MAX_CONNECTIONS_PER_IP = 10;
 const RATE_LIMIT_MESSAGES_PER_SEC = 30;
 const RATE_LIMIT_WINDOW_MS = 1000;
@@ -46,9 +57,9 @@ const TOKEN_FILE = path.join(TOKEN_DIR, "token");
 try {
     fs.mkdirSync(TOKEN_DIR, { recursive: true });
     fs.writeFileSync(TOKEN_FILE, AUTH_TOKEN, { mode: 0o600 });
-    console.log(`[${new Date().toISOString()}] Auth token written to ${TOKEN_FILE}`);
+    logInfo(`Auth token written to ${TOKEN_FILE}`);
 } catch (err) {
-    console.error(`[ERROR] Could not write auth token to disk: ${err.message}`);
+    logError(`Could not write auth token to disk: ${err.message}`);
 }
 
 // Serve token over HTTP for UXP plugins (localhost-only due to server bind below)
@@ -96,7 +107,7 @@ io.use((socket, next) => {
         Buffer.from(token),
         Buffer.from(AUTH_TOKEN)
     )) {
-        console.log(`[WARN] Rejected unauthenticated connection from ${socket.handshake.address}`);
+        logWarn(`Rejected unauthenticated connection from ${socket.handshake.address}`);
         return next(new Error("Unauthorized"));
     }
     next();
@@ -108,7 +119,7 @@ io.on("connection", (socket) => {
     // Enforce per-IP connection limit
     connectionsByIp[clientIp] = (connectionsByIp[clientIp] || 0) + 1;
     if (connectionsByIp[clientIp] > MAX_CONNECTIONS_PER_IP) {
-        console.log(`[WARN] Connection limit exceeded for IP ${clientIp}. Disconnecting ${socket.id}.`);
+        logWarn(`Connection limit exceeded for IP ${clientIp}. Disconnecting ${socket.id}.`);
         socket.disconnect(true);
         connectionsByIp[clientIp]--;
         return;
@@ -117,14 +128,14 @@ io.on("connection", (socket) => {
     const messageRateLimiter = createRateLimiter(RATE_LIMIT_MESSAGES_PER_SEC, RATE_LIMIT_WINDOW_MS);
     const registerRateLimiter = createRateLimiter(MAX_REGISTER_PER_MIN, 60000);
 
-    console.log(`[${new Date().toISOString()}] User connected: ${socket.id} from ${clientIp}`);
+    logInfo(`User connected: ${socket.id} from ${clientIp}`);
 
     socket.on("register", ({ application }) => {
         if (!registerRateLimiter()) {
-            console.log(`[WARN] Register rate limit hit for ${socket.id}. Ignoring.`);
+            logWarn(`Register rate limit hit for ${socket.id}. Ignoring.`);
             return;
         }
-        console.log(
+        logInfo(
             `Client ${socket.id} registered for application: ${application}`
         );
 
@@ -150,15 +161,15 @@ io.on("connection", (socket) => {
 
         if (senderId) {
             io.to(senderId).emit("packet_response", packet);
-            console.log(`Sent confirmation to client ${senderId}`);
+            logDebug(`Sent confirmation to client ${senderId}`);
         } else {
-            console.log(`No sender ID provided in packet`);
+            logWarn(`No sender ID provided in packet`);
         }
     });
 
     socket.on("command_packet", ({ application, command }) => {
         if (!messageRateLimiter()) {
-            console.log(`[WARN] Message rate limit hit for ${socket.id}. Dropping packet.`);
+            logWarn(`Message rate limit hit for ${socket.id}. Dropping packet.`);
             socket.emit("packet_response", {
                 senderId: socket.id,
                 status: "FAILURE",
@@ -166,9 +177,9 @@ io.on("connection", (socket) => {
             });
             return;
         }
-        console.log(
-            `Command from ${socket.id} for application ${application}:`,
-            command
+        logDebug(
+            `Command from ${socket.id} for application ${application}: ` +
+            JSON.stringify(typeof command === "object" ? { action: command.action } : command)
         );
 
         // Register this client for this application if not already registered
@@ -192,7 +203,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("disconnect", () => {
-        console.log(`[${new Date().toISOString()}] User disconnected: ${socket.id}`);
+        logInfo(`User disconnected: ${socket.id}`);
 
         // Release connection slot for this IP
         if (connectionsByIp[clientIp] > 0) {
@@ -217,7 +228,7 @@ io.on("connection", (socket) => {
 function sendToApplication(packet) {
     let application = packet.application;
     if (applicationClients[application]) {
-        console.log(
+        logDebug(
             `Sending to ${applicationClients[application].size} clients for ${application}`
         );
 
@@ -228,7 +239,7 @@ function sendToApplication(packet) {
         });
         return true;
     }
-    console.log(`No clients registered for application: ${application}`);
+    logWarn(`No clients registered for application: ${application}`);
     return false;
 }
 
@@ -236,7 +247,5 @@ function sendToApplication(packet) {
 // sendToApplication('photoshop', { message: 'Update available' });
 
 server.listen(PORT, "127.0.0.1", () => {
-    console.log(
-        `adb-mcp Command proxy server running on ws://localhost:${PORT}`
-    );
+    logInfo(`adb-mcp Command proxy server running on ws://localhost:${PORT}`);
 });

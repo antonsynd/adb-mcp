@@ -21,8 +21,29 @@
 # SOFTWARE.
 
 import sys
+import logging
 
-def log(message, filter_tag="LOGGER"):
+# Configure root logger to write to stderr with ISO timestamps and log level
+_handler = logging.StreamHandler(sys.stderr)
+_handler.setFormatter(
+    logging.Formatter(
+        fmt="%(asctime)s %(levelname)s %(name)s : %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+    )
+)
 
-    print(f"{filter_tag} : {message}", file=sys.stderr)
+logging.root.addHandler(_handler)
+logging.root.setLevel(logging.DEBUG)
+
+_logger = logging.getLogger("adb_mcp")
+
+
+def log(message: str, filter_tag: str = "LOGGER") -> None:
+    """Log *message* at INFO level using a child logger named after *filter_tag*."""
+    logging.getLogger(f"adb_mcp.{filter_tag}").info(message)
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Return a child logger under the adb_mcp namespace."""
+    return logging.getLogger(f"adb_mcp.{name}")
 
