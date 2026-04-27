@@ -34,7 +34,7 @@
         {
           "width": 32,
           "height": 32,
-          "path": "icons/icon_D.png",
+          "path": "icons/dark@1x.png",
           "scale": [
             1,
             2
@@ -50,7 +50,7 @@
         {
           "width": 32,
           "height": 32,
-          "path": "icons/icon_N.png",
+          "path": "icons/light@1x.png",
           "scale": [
             1,
             2
@@ -73,14 +73,16 @@
     "network": {
       "domains": ["http://localhost:3001"]
     },
-    "localFileSystem": "fullAccess",
+    "localFileSystem": "fullAccess"
+  },
+  "featureFlags": {
     "allowCodeGenerationFromStrings": true
   },
   "icons": [
     {
       "width": 23,
       "height": 23,
-      "path": "icons/dark.png",
+      "path": "icons/dark@1x.png",
       "scale": [
         1,
         2
@@ -94,7 +96,7 @@
     {
       "width": 23,
       "height": 23,
-      "path": "icons/light.png",
+      "path": "icons/light@1x.png",
       "scale": [
         1,
         2
