@@ -7,6 +7,15 @@
         "serve"
       ],
       "type": "stdio"
+    },
+    "photoshop-mcp": {
+      "command": "uv",
+      "args": [
+        "run",
+        "ps-mcp.py"
+      ],
+      "cwd": "/Users/anton/Documents/github/adb-mcp/mcp",
+      "type": "stdio"
     }
   }
 }
