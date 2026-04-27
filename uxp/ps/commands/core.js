@@ -526,7 +526,6 @@ const executeBatchPlayCommand = async (commands) => {
         return o[0]
     });
 
-    console.log(out)
     return out;
 }
 

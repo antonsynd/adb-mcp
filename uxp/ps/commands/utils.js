@@ -247,9 +247,7 @@ const getMostRecentlyModifiedFile = async (directoryPath)  => {
       const fileDetails = [];
       
       // Process each file
-      let i = 0
       for (const entry of dirEntries) {
-        console.log(i++)
         const filePath = window.path.join(directoryPath, entry);
         
         // Get file stats using lstat
@@ -268,7 +266,7 @@ const getMostRecentlyModifiedFile = async (directoryPath)  => {
             modifiedTimestamp: stats.mtimeMs  // Use mtimeMs directly instead of getTime()
           });
         } catch (err) {
-          console.log(`Error getting stats for ${filePath}:`, err);
+          console.error(`Error getting stats for ${filePath}:`, err);
           // Continue to next file if there's an error with this one
           continue;
         }

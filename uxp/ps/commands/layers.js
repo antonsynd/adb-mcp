@@ -448,11 +448,6 @@ const editTextLayer = async (command) => {
         const fontName = options.fontName;
 
 
-        console.log("contents", options.contents)
-        console.log("fontSize", options.fontSize)
-        console.log("textColor", options.textColor)
-        console.log("fontName", options.fontName)
-
         if (contents != undefined) {
             layer.textItem.contents = contents;
         }
@@ -886,7 +881,6 @@ const harmonizeLayer = async (command) => {
         ];
 
 
-        console.log(rasterizeLayer)
         if(rasterizeLayer) {
             commands.push({
                 _obj: "rasterizeLayer",
