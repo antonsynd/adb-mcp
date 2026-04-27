@@ -2,10 +2,84 @@ body {
   color: white;
   padding: 16px;
   font-family: Arial, sans-serif;
+  margin: 0;
+}
+
+#header {
+  margin-bottom: 16px;
+}
+
+#title {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+#attribution {
+  font-size: 11px;
+  color: #999;
+}
+
+#attribution a {
+  color: #aaa;
+  text-decoration: none;
+}
+
+#attribution a:hover {
+  text-decoration: underline;
+}
+
+#attribution .separator {
+  margin: 0 4px;
+}
+
+#connection {
+  margin-bottom: 12px;
+}
+
+#status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.disconnected {
+  background-color: #666;
+}
+
+.status-dot.connecting {
+  background-color: #e8a317;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.status-dot.connected {
+  background-color: #2ecc40;
+}
+
+.status-dot.error {
+  background-color: #e74c3c;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+#statusText {
+  font-size: 12px;
+  color: #ccc;
 }
 
 li:before {
-  content: '• ';
+  content: '* ';
   width: 3em;
 }
 
@@ -13,10 +87,4 @@ li:before {
   border: 1px solid #808080;
   border-radius: 4px;
   padding: 16px;
-}
-
-footer {
-  position: fixed;
-  bottom: 16px;
-  left: 16px;
 }

@@ -81,17 +81,24 @@ const onCommandPacket = async (packet) => {
 };
 
 async function connectToServer() {
-    // Fetch auth token from proxy's HTTP endpoint before connecting
-    const authToken = await fetchAuthToken();
+    setConnectionStatus("connecting");
 
-    // Create new Socket.IO connection
+    let authToken;
+    try {
+        authToken = await fetchAuthToken();
+    } catch (e) {
+        console.error("Failed to fetch auth token:", e);
+        setConnectionStatus("error");
+        return;
+    }
+
     socket = io(PROXY_URL, {
         transports: ["websocket"],
         auth: { token: authToken },
     });
 
     socket.on("connect", () => {
-        updateButton();
+        setConnectionStatus("connected");
         console.log("Connected to server with ID:", socket.id);
         socket.emit("register", { application: APPLICATION });
     });
@@ -105,19 +112,16 @@ async function connectToServer() {
 
     socket.on("registration_response", (data) => {
         console.log("Received response:", data);
-        //TODO: connect button here
     });
 
     socket.on("connect_error", (error) => {
-        updateButton();
+        setConnectionStatus("error");
         console.error("Connection error:", error);
     });
 
     socket.on("disconnect", (reason) => {
-        updateButton();
+        setConnectionStatus("disconnected");
         console.log("Disconnected from server. Reason:", reason);
-
-        //TODO:connect button here
     });
 
     return socket;
@@ -198,16 +202,45 @@ entrypoints.setup({
     },
 });
 
-let updateButton = () => {
-    let b = document.getElementById("btnStart");
+function setConnectionStatus(state) {
+    const btn = document.getElementById("btnStart");
+    const dot = document.getElementById("statusIndicator");
+    const text = document.getElementById("statusText");
 
-    b.textContent = socket && socket.connected ? "Disconnect" : "Connect";
-};
+    dot.className = "status-dot";
 
-//Toggle button to make it start stop
+    switch (state) {
+        case "disconnected":
+            dot.classList.add("disconnected");
+            text.textContent = "Disconnected";
+            btn.textContent = "Connect";
+            btn.disabled = false;
+            break;
+        case "connecting":
+            dot.classList.add("connecting");
+            text.textContent = "Connecting...";
+            btn.textContent = "Cancel";
+            btn.disabled = false;
+            break;
+        case "connected":
+            dot.classList.add("connected");
+            text.textContent = "Connected";
+            btn.textContent = "Disconnect";
+            btn.disabled = false;
+            break;
+        case "error":
+            dot.classList.add("error");
+            text.textContent = "Connection failed";
+            btn.textContent = "Retry";
+            btn.disabled = false;
+            break;
+    }
+}
+
 document.getElementById("btnStart").addEventListener("click", () => {
-    if (socket && socket.connected) {
+    if (socket && (socket.connected || socket.active)) {
         disconnectFromServer();
+        setConnectionStatus("disconnected");
     } else {
         connectToServer();
     }

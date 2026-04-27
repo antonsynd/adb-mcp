@@ -7,21 +7,27 @@
 
 <body>
 
+  <div id="header">
+    <div id="title">Photoshop MCP Agent</div>
+    <div id="attribution">
+      <span>by <a href="https://github.com/antonsynd/adb-mcp">Anton Nguyen</a></span>
+      <span class="separator">&middot;</span>
+      <span>originally by <a href="https://github.com/mikechambers/adb-mcp">Mike Chambers</a></span>
+    </div>
+  </div>
 
-
-  <div>
+  <div id="connection">
+    <div id="status-row">
+      <span id="statusIndicator" class="status-dot disconnected"></span>
+      <span id="statusText">Disconnected</span>
+    </div>
     <sp-button id="btnStart">Connect</sp-button>
   </div>
-  <p>&nbsp;</p>
-  <div>
+
+  <div id="options">
     <sp-checkbox id="chkConnectOnLaunch">Connect on Launch</sp-checkbox>
   </div>
-  <footer>
-    <div>
-      <div>Created by Mike Chambers</div>
-      <div>https://github.com/mikechambers/adb-mcp</div>
-    </div>
-  </footer>
+
   <script src="main.js"></script>
 </body>
 
