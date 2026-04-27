@@ -303,6 +303,48 @@ def get_document_image():
 
 
 @mcp.tool()
+def execute_script(code: str, timeout: int = 30):
+    """
+    Execute arbitrary JavaScript code inside Photoshop's UXP runtime.
+
+    The code runs inside an async function with these variables available:
+    - app: Photoshop application object (require('photoshop').app)
+    - action: action module (for batchPlay)
+    - imaging: imaging module (for pixel access)
+    - constants: Photoshop constants
+    - fs: UXP filesystem module
+
+    Use 'return' to send values back. Example:
+        return app.activeDocument.layers.map(l => ({id: l.id, name: l.name}))
+
+    Args:
+        code: JavaScript code to execute
+        timeout: Max seconds to wait (default 30, increase for slow operations)
+    """
+    command = createCommand("executeScript", {"code": code})
+    return sendCommand(command, timeout=timeout)
+
+
+@mcp.tool()
+def call_batch_play_command(commands: list):
+    """
+    Executes arbitrary Photoshop batchPlay commands via MCP.
+
+    Args:
+        commands (list): A list of batchPlay descriptors to pass directly to
+            batchPlay() in the UXP plugin.
+
+    Returns:
+        Any: The result returned from Photoshop after executing the batchPlay command(s).
+    """
+    if not commands:
+        raise ValueError("commands cannot be empty.")
+
+    command = createCommand("executeBatchPlayCommand", {"commands": commands})
+    return sendCommand(command)
+
+
+@mcp.tool()
 def save_document_image_as_png(file_path: str):
     """
     Capture the Photoshop document and save as PNG file
@@ -1584,6 +1626,36 @@ def get_instructions() -> str:
     interpolation_methods: {", ".join(interpolation_methods)}
 
     fonts: {", ".join(font_names[:FONT_LIMIT])}
+
+    ## JavaScript REPL (execute_script)
+
+    Use execute_script for exploratory, multi-step, or novel operations that don't map to a
+    curated tool. Use curated tools (create_document, apply_filter, etc.) for well-known
+    operations — they are safer and have built-in validation.
+
+    The code you pass runs inside an async function with these variables pre-injected:
+    - app        — Photoshop application object  (require('photoshop').app)
+    - action     — action module for batchPlay
+    - imaging    — imaging module for pixel-level access
+    - constants  — Photoshop constants (e.g. constants.BlendMode.NORMAL)
+    - fs         — UXP filesystem module
+
+    Use 'return' to send a value back. Examples:
+        return app.activeDocument.layers.map(l => ({{id: l.id, name: l.name}}))
+        return app.activeDocument.width + 'x' + app.activeDocument.height
+
+    To apply a batchPlay operation inside execute_script:
+        await action.batchPlay([{{ _obj: "gaussian", radius: 5 }}], {{}});
+
+    Error handling: if execute_script throws, the error message is returned in the
+    response — read it carefully and iterate. Syntax errors are caught before execution
+    and reported as "SyntaxError in provided code: ...".
+
+    Increase timeout for slow operations (generative fill, large batch scripts):
+        execute_script(code="...", timeout=120)
+
+    State is NOT shared between execute_script calls. Each invocation is independent.
+    To persist state across calls, write to app.activeDocument properties or use layers.
     """
 
 

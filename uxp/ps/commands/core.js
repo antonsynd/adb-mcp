@@ -530,7 +530,28 @@ const executeBatchPlayCommand = async (commands) => {
     return out;
 }
 
+const executeScript = async (command) => {
+    let options = command.options;
+    let code = options.code;
+
+    // Catch syntax errors from AsyncFunction construction separately from
+    // runtime errors during execution — both return structured errors so the
+    // AI agent can iterate rather than see unhandled exceptions.
+    let fn;
+    try {
+        const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+        fn = new AsyncFunction("app", "action", "imaging", "constants", "fs", code);
+    } catch (e) {
+        throw new Error(`SyntaxError in provided code: ${e.message}`);
+    }
+
+    return await execute(async () => {
+        return await fn(app, action, imaging, constants, fs);
+    });
+};
+
 const commandHandlers = {
+    executeScript,
     generativeFill,
     executeBatchPlayCommand,
     setActiveDocument,

@@ -73,7 +73,8 @@
     "network": {
       "domains": ["http://localhost:3001"]
     },
-    "localFileSystem": "fullAccess"
+    "localFileSystem": "fullAccess",
+    "allowCodeGenerationFromStrings": true
   },
   "icons": [
     {

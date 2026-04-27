@@ -24,7 +24,7 @@ import json
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 from typing import Any, Optional
 
 import socketio
@@ -34,6 +34,9 @@ import logger
 _log = logger.get_logger("socket_client")
 
 TOKEN_FILE = Path.home() / ".adb-mcp" / "token"
+
+# Sentinel placed in the response queue when the connection drops mid-command.
+_CONNECTION_LOST = object()
 
 
 def _read_auth_token() -> str:
@@ -58,156 +61,215 @@ _config = _Config()
 _config_lock = threading.Lock()
 
 
+class AppError(Exception):
+    pass
+
+
+class _PersistentClient:
+    """
+    Maintains a single persistent Socket.IO connection to the proxy.
+
+    Only one command may be in flight at a time (serialized via _send_lock).
+    If the connection drops while a command is awaiting a response, that command
+    fails immediately with a clear error — it is never silently requeued, since
+    the command may have already executed on the plugin side.
+    """
+
+    def __init__(self) -> None:
+        # Guards _sio and _connected
+        self._state_lock = threading.Lock()
+        # Serializes command sends so only one is in flight at a time
+        self._send_lock = threading.Lock()
+        self._sio: Optional[socketio.Client] = None
+        self._connected: bool = False
+        # Single queue: one waiter at a time (enforced by _send_lock)
+        self._response_queue: Queue[Any] = Queue()
+
+    def _is_connected(self) -> bool:
+        with self._state_lock:
+            return self._connected and self._sio is not None
+
+    def _build_sio(self) -> socketio.Client:
+        """Create and wire up a new socketio.Client."""
+        sio = socketio.Client(logger=False, reconnection=False)
+
+        @sio.event
+        def connect() -> None:
+            _log.info("Persistent connection established (sid=%s)", sio.sid)
+            with self._state_lock:
+                self._connected = True
+
+        @sio.event
+        def packet_response(data: Any) -> None:
+            status = (
+                data.get("status", "<unknown>")
+                if isinstance(data, dict)
+                else "<unknown>"
+            )
+            _log.info("Received packet_response: status=%s", status)
+            _log.debug("Full response: %s", json.dumps(data, default=str))
+            self._response_queue.put(data)
+
+        @sio.event
+        def disconnect() -> None:
+            _log.info("Persistent connection disconnected")
+            with self._state_lock:
+                self._connected = False
+                self._sio = None
+            # Signal any blocked send() that the connection was lost.
+            # Using a sentinel object avoids confusion with a real None response.
+            self._response_queue.put(_CONNECTION_LOST)
+
+        @sio.event
+        def connect_error(error: Any) -> None:
+            _log.error("Connection error: %s", error)
+            with self._state_lock:
+                self._connected = False
+                self._sio = None
+
+        return sio
+
+    def _connect(self, proxy_url: str, application: str) -> None:
+        """
+        Establish a new connection. Blocks until connected or raises.
+        Must be called while holding _send_lock so only one connect attempt
+        runs at a time.
+        """
+        auth_token = _read_auth_token()
+        sio = self._build_sio()
+        _log.info("Connecting to proxy at %s (app=%s)...", proxy_url, application)
+        try:
+            sio.connect(proxy_url, transports=["websocket"], auth={"token": auth_token})
+        except Exception as e:
+            raise RuntimeError(
+                f"Could not connect to proxy at {proxy_url} for application "
+                f"'{application}'. Make sure the proxy is running. "
+                f"Original error: {e}"
+            ) from e
+        with self._state_lock:
+            self._sio = sio
+        # Drain any stale sentinels from a previous disconnect
+        self._drain_queue()
+
+    def _drain_queue(self) -> None:
+        """Discard any leftover items in the response queue."""
+        while True:
+            try:
+                self._response_queue.get_nowait()
+            except Empty:
+                break
+
+    def send(
+        self,
+        command: dict[str, Any],
+        application: str,
+        proxy_url: str,
+        wait_timeout: int,
+    ) -> dict[str, Any]:
+        """
+        Send a command and block until a response arrives or timeout elapses.
+        Serialized: only one command in flight at a time.
+        """
+        with self._send_lock:
+            # Connect if needed
+            if not self._is_connected():
+                self._connect(proxy_url, application)
+            else:
+                # Drain stale items (e.g. a _CONNECTION_LOST sentinel from a
+                # previous disconnect that arrived between sends)
+                self._drain_queue()
+
+            action = (
+                command.get("action", "<unknown>")
+                if isinstance(command, dict)
+                else "<unknown>"
+            )
+            _log.info("Sending command '%s' to application '%s'", action, application)
+
+            with self._state_lock:
+                sio = self._sio
+
+            if sio is None:
+                raise RuntimeError(
+                    "Connection became unavailable just before sending. "
+                    "Will reconnect on next call."
+                )
+
+            sio.emit(
+                "command_packet",
+                {
+                    "type": "command",
+                    "application": application,
+                    "command": command,
+                },
+            )
+
+            try:
+                response = self._response_queue.get(timeout=wait_timeout)
+            except Empty:
+                raise RuntimeError(
+                    f"Command '{action}' timed out after {wait_timeout}s. "
+                    "Make sure Photoshop is running and the MCP plugin is connected."
+                )
+
+            if response is _CONNECTION_LOST:
+                raise RuntimeError(
+                    f"Connection lost while awaiting response for '{action}' — "
+                    "the command may or may not have executed. "
+                    "Reconnect and retry only if the operation is idempotent."
+                )
+
+            if response is None:
+                raise RuntimeError(f"Received null response for command '{action}'.")
+
+            if isinstance(response, dict) and response.get("status") == "FAILURE":
+                raise AppError(
+                    f"Error returned from {application}: {response.get('message', '<no message>')}"
+                )
+
+            return response  # type: ignore[no-any-return]
+
+
+# Module-level singleton — shared across all calls in a process
+_client = _PersistentClient()
+
+
 def send_message_blocking(
     command: dict[str, Any], timeout: Optional[int] = None
 ) -> Optional[dict[str, Any]]:
     """
-    Blocking function that connects to a Socket.IO server, sends a message,
-    waits for a response, then disconnects.
+    Send a command to the proxy and block until the response arrives.
 
     Args:
-        command: The command to send
-        timeout (int): Maximum time to wait for response in seconds
+        command: The command dict to send
+        timeout: Max seconds to wait; falls back to the configured default
 
     Returns:
-        dict: The response received from the server, or None if no response
+        The response dict from the proxy/plugin
     """
-    # Read config atomically under lock
     with _config_lock:
         application = _config.application
         proxy_url = _config.proxy_url
         proxy_timeout = _config.proxy_timeout
 
-    # Check if configuration is set
     if not application or not proxy_url or not proxy_timeout:
         _log.error("Socket client not configured. Call configure() first.")
         return None
 
-    # Use provided timeout or default
     wait_timeout = timeout if timeout is not None else proxy_timeout
 
-    # Create a standard (non-async) SocketIO client with WebSocket transport only
-    sio = socketio.Client(logger=False)
-
-    # Read auth token
-    auth_token = _read_auth_token()
-
-    # Use a queue to get the response from the event handler
-    response_queue: Queue[Optional[dict[str, Any]]] = Queue()
-
-    connection_failed = [False]
-
-    @sio.event
-    def connect() -> None:
-        _log.debug("Connected to server with session ID: %s", sio.sid)
-
-        # Send the command
-        action = (
-            command.get("action", "<unknown>")
-            if isinstance(command, dict)
-            else "<unknown>"
-        )
-        _log.info("Sending command '%s' to application '%s'", action, application)
-        sio.emit(
-            "command_packet",
-            {"type": "command", "application": application, "command": command},
-        )
-
-    @sio.event
-    def packet_response(data: Any) -> None:
-        status = (
-            data.get("status", "<unknown>") if isinstance(data, dict) else "<unknown>"
-        )
-        action = (
-            command.get("action", "<unknown>")
-            if isinstance(command, dict)
-            else "<unknown>"
-        )
-        _log.info("Received response for command '%s': status=%s", action, status)
-        _log.debug("Full response: %s", data)
-        response_queue.put(data)
-        # Disconnect after receiving the response
-        sio.disconnect()
-
-    @sio.event
-    def disconnect() -> None:
-        _log.debug("Disconnected from server")
-        # If we disconnect without response, put None in the queue
-        if response_queue.empty():
-            response_queue.put(None)
-
-    @sio.event
-    def connect_error(error: Any) -> None:
-        _log.error("Connection error: %s", error)
-        connection_failed[0] = True
-        response_queue.put(None)
-
-    # Connect in a separate thread to avoid blocking the main thread during connection
-    def connect_and_wait() -> None:
-        try:
-            sio.connect(proxy_url, transports=["websocket"], auth={"token": auth_token})
-            # Keep the client running until disconnect is called
-            sio.wait()
-        except Exception as e:
-            _log.error("Error in socket thread: %s", e)
-            connection_failed[0] = True
-            if response_queue.empty():
-                response_queue.put(None)
-            if sio.connected:
-                sio.disconnect()
-
-    # Start the client in a separate thread
-    client_thread = threading.Thread(target=connect_and_wait)
-    client_thread.daemon = True
-    client_thread.start()
-
-    try:
-        # Wait for a response or timeout
-        _log.debug("Waiting for response (timeout=%ss)...", wait_timeout)
-        response = response_queue.get(timeout=wait_timeout)
-
-        if connection_failed[0]:
-            raise RuntimeError(
-                f"Error: Could not connect to {application} command proxy server. Make sure that the proxy server is running listening on the correct url {proxy_url}."
-            )
-
-        if response:
-            _log.debug(
-                "Response received (JSON): %s", json.dumps(response, default=str)
-            )
-
-            if response["status"] == "FAILURE":
-                raise AppError(
-                    f"Error returned from {application}: {response['message']}"
-                )
-
-        return response
-    except AppError:
-        raise
-    except Exception as e:
-        _log.error("Error waiting for response: %s", e)
-        if sio.connected:
-            sio.disconnect()
-
-        raise RuntimeError(
-            f"Error: Could not connect to {application}. Connection Timed Out. Make sure that {application} is running and that the MCP Plugin is connected. Original error: {e}"
-        )
-    finally:
-        # Make sure client is disconnected
-        if sio.connected:
-            sio.disconnect()
-        # Wait for the thread to finish (should be quick after disconnect)
-        client_thread.join(timeout=5)
-        if client_thread.is_alive():
-            _log.warning("Socket client thread still alive after join timeout")
-
-
-class AppError(Exception):
-    pass
+    return _client.send(
+        command=command,
+        application=application,
+        proxy_url=proxy_url,
+        wait_timeout=wait_timeout,
+    )
 
 
 def configure(
-    app: Optional[str] = None, url: Optional[str] = None, timeout: Optional[int] = None
+    app: Optional[str] = None,
+    url: Optional[str] = None,
+    timeout: Optional[int] = None,
 ) -> None:
     with _config_lock:
         if app:
