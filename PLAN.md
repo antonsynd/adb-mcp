@@ -1,3 +1,6 @@
+<!-- Verified by /verify-plan on 2026-04-26 -->
+<!-- Verification result: PASS WITH CORRECTIONS -->
+
 # Plan: Photoshop REPL via MCP
 
 Fork of [mikechambers/adb-mcp](https://github.com/mikechambers/adb-mcp). Goal: expose a JavaScript REPL for Photoshop through MCP so an AI agent can send arbitrary JS code (UXP DOM API, batchPlay, etc.) and get results back.
@@ -124,15 +127,23 @@ def get_canvas_snapshot() -> Image:
     """Returns a JPEG screenshot of the current Photoshop canvas."""
     command = createCommand("getDocumentImage", {})
     result = sendCommand(command)
-    # The proxy returns the handler's result under the "command" key in the
-    # packet_response, with status at the top level. The actual response
-    # structure from sendCommand needs to be verified against the proxy's
-    # packet format — adjust the key path accordingly.
-    image_data = result["command"]["response"]["base64Image"]
-    return Image(data=base64.b64decode(image_data), format="jpeg")
+    # [CORRECTED: The response from sendCommand() is the direct packet object:
+    # {status, response, document, layers, hasActiveSelection}. There is no
+    # intermediate "command" key. The handler return value is at result["response"].
+    # Using dataUrl (with prefix stripping) matches the existing get_document_image
+    # pattern in ps-mcp.py.]
+    if result.get("status") == "SUCCESS" and "response" in result:
+        image_data = result["response"]
+        data_url = image_data.get("dataUrl")
+        if data_url and data_url.startswith("data:image/jpeg;base64,"):
+            base64_data = data_url.split(",", 1)[1]
+            return Image(data=base64.b64decode(base64_data), format="jpeg")
+    return result
 ```
 
-This already works via the existing `getDocumentImage` handler — just needs a clean MCP tool wrapper that returns an `Image` object directly. **Note:** The exact key path to `base64Image` depends on how the proxy wraps the plugin's response in `command_packet_response`. Verify by inspecting an actual response from `sendCommand` before finalizing.
+**[CORRECTED: `get_document_image()` already exists in `mcp/ps-mcp.py` (line 286) and does exactly this — it calls `getDocumentImage`, decodes the dataUrl, and returns an `Image` object. Phase 1.4 is therefore already implemented. Consider simply keeping/renaming the existing tool rather than adding a duplicate.]**
+
+This already works via the existing `getDocumentImage` handler. The correct response key path (verified from proxy.js and ps-mcp.py) is `result["response"]["dataUrl"]`.
 
 ### Phase 2: Improve the Socket Layer
 
@@ -244,3 +255,32 @@ The existing `config://get_instructions` resource gives the agent context about 
 - **UXP eval limitations**: Need to verify that `new AsyncFunction()` works in UXP's V8. If not, fall back to `eval('(async () => { ' + code + ' })()')`. The UXP runtime is not a full browser — some JS features may be missing.
 - **State between calls**: Each `executeScript` invocation is independent — no shared variables between calls. If the agent needs to build up state across calls, it would need to use a global object on `window` or write to the document. This may be fine in practice since the agent can always re-query state.
 - **Proxy auto-start**: Could bundle the proxy into the UXP plugin's lifecycle (start on connect, stop on disconnect) but this adds complexity. A manual `node proxy.js` or a launcher script is simpler for personal use.
+
+## Verification Summary
+
+**Result:** PASS WITH CORRECTIONS
+**Verified on:** 2026-04-26
+**Plan file:** PLAN.md
+
+### Corrections Made
+
+1. **Section 1.4 — `get_canvas_snapshot` response key path** (critical error): The original code used `result["command"]["response"]["base64Image"]`. The actual response structure from `sendCommand()` places the handler's return value directly at `result["response"]` — there is no `"command"` intermediate key. The proxy emits `packet_response` with the raw `out` object (`{status, response, document, layers, hasActiveSelection}`), not wrapped under a `"command"` key. Corrected to match the pattern in the existing `get_document_image()` in `mcp/ps-mcp.py` (line 286): use `result["response"]["dataUrl"]` with prefix stripping.
+
+2. **Section 1.4 — `get_document_image` already exists** (redundancy): `get_document_image()` in `mcp/ps-mcp.py` (line 286) already does exactly what `get_canvas_snapshot` would do — calls `getDocumentImage`, decodes the `dataUrl`, and returns an `Image` object. Phase 1.4 is effectively already implemented. Added a corrective note so the author can decide whether to rename or consolidate rather than add a duplicate.
+
+### Warnings
+
+- **`allowCodeGenerationFromStrings` manifest field name**: The exact UXP manifest v5 field name for enabling `eval()`/`new AsyncFunction()` cannot be verified without running UXP or consulting Adobe's documentation. The plan correctly acknowledges this in "Open Questions." Ensure this field name is confirmed against official UXP docs before implementation.
+
+- **`executeBatchPlayCommand` returns `o[0]`**: The existing handler returns only the first element of the batchPlay result array (`return o[0]`, core.js line ~529). The plan doesn't mention this when describing the merge in Phase 3.2. When consolidating `ps-batch-play.py` into `ps-mcp.py`, confirm that callers expecting the full array won't be broken.
+
+- **Phase 3.2 `get_canvas_snapshot` in File Change Summary**: The summary table lists adding `get_canvas_snapshot` as new, but it already exists as `get_document_image`. Update the table to reflect keeping/renaming the existing tool.
+
+### Missing Steps Added
+
+- Phase 1.3 / 3.2: When merging `ps-batch-play.py` into `ps-mcp.py`, the `config://get_instructions` resource currently lives in **both** `ps-mcp.py` (line 1532) and `ps-batch-play.py` — the merged file should deduplicate this resource and extend it per Section 4.3.
+
+### Unchecked Claims
+
+- **`allowCodeGenerationFromStrings: true` as the correct UXP manifest field**: UXP plugin documentation is needed to confirm this exact key name and placement within `requiredPermissions`. Cannot verify statically.
+- **`new AsyncFunction()` availability in UXP's V8**: Noted in the plan's Open Questions; cannot verify without running the UXP runtime.
