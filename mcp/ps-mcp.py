@@ -28,6 +28,7 @@ import numpy as np
 
 import socket_client
 from core import createCommand, init, sendCommand
+from proxy_manager import ensure_proxy
 from fonts import list_all_fonts_postscript
 from mcp.server.fastmcp import FastMCP, Image
 from path_validator import validate_path
@@ -49,6 +50,7 @@ APPLICATION = "photoshop"
 PROXY_URL = os.environ.get("ADB_MCP_PROXY_URL", "http://localhost:3001")
 PROXY_TIMEOUT = int(os.environ.get("ADB_MCP_PROXY_TIMEOUT", "20"))
 
+ensure_proxy(PROXY_URL)
 socket_client.configure(app=APPLICATION, url=PROXY_URL, timeout=PROXY_TIMEOUT)
 
 init(APPLICATION, socket_client)
