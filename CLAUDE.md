@@ -16,8 +16,8 @@ AI Client <-> MCP Server (Python, stdio) <-> WebSocket Proxy (Node, :3001) <-> U
 
 - **MCP Server** (`mcp/ps-mcp.py`): Python process using `FastMCP` from the `mcp` SDK. Defines `@mcp.tool()` functions (curated tools + `execute_script` REPL + `call_batch_play_command`) that build command dicts via `core.createCommand()` and send them via `socket_client.send_message_blocking()`.
 - **WebSocket Proxy** (`adb-proxy-socket/proxy.js`): Socket.IO relay on port 3001. Routes `command_packet` events by application name. No command parsing — purely a message router.
-- **UXP Plugin** (`uxp/ps/`): Runs inside Photoshop. Connects to the proxy as a Socket.IO client. Receives commands, dispatches to handler functions, returns results. Handlers are split across `commands/core.js` (including `executeScript`), `commands/layers.js`, `commands/selection.js`, `commands/filters.js`, `commands/adjustment_layers.js`, `commands/layer_styles.js`, and `commands/utils.js`. Aggregated via `commands/index.js`.
-- **Shared modules** (`mcp/core.py`, `mcp/socket_client.py`, `mcp/logger.py`, `mcp/fonts.py`, `mcp/validators.py`, `mcp/path_validator.py`): `core.py` creates command dicts. `socket_client.py` handles per-command Socket.IO connect/send/disconnect cycles. `fonts.py` enumerates system PostScript font names via fontTools. `validators.py` validates input parameters at the MCP tool boundary. `path_validator.py` restricts file paths to the user's home directory (configurable via `ADB_MCP_ALLOWED_PATH_PREFIX` env var).
+- **UXP Plugin** (`uxp/ps/`): Runs inside Photoshop. Connects to the proxy as a Socket.IO client. Receives commands, dispatches to handler functions, returns results. Handlers are split across `commands/core.js` (including `executeScript`), `commands/layers.js`, `commands/selection.js`, `commands/filters.js`, `commands/adjustment_layers.js`, `commands/layer_styles.js`, and `commands/utils.js`. Aggregated via `commands/index.js`. `logger.js` provides an in-panel debug log and writes to `~/Documents/adb-mcp-logs/photoshop-mcp.log`.
+- **Shared modules** (`mcp/core.py`, `mcp/socket_client.py`, `mcp/logger.py`, `mcp/fonts.py`, `mcp/validators.py`, `mcp/path_validator.py`, `mcp/proxy_manager.py`): `core.py` creates command dicts. `socket_client.py` handles per-command Socket.IO connect/send/disconnect cycles. `fonts.py` enumerates system PostScript font names via fontTools. `validators.py` validates input parameters at the MCP tool boundary. `path_validator.py` restricts file paths to the user's home directory (configurable via `ADB_MCP_ALLOWED_PATH_PREFIX` env var). `proxy_manager.py` auto-launches the proxy as a subprocess if it isn't already running on port 3001.
 - **DXT packaging** (`dxt/`): Contains manifest and build output for packaging the UXP plugin as a `.dxt` distributable.
 
 The proxy is needed because UXP plugins can only connect to sockets as clients, not listen as servers.
@@ -33,21 +33,32 @@ For exploratory or novel operations, use `execute_script` (JS REPL) or `call_bat
 
 ## Commands
 
-### MCP Server (from `mcp/` directory)
+### MCP Server
 
 ```bash
-# Install the MCP server for development (registers with Claude Desktop)
-uv run mcp install --with fonttools --with python-socketio --with mcp --with requests --with websocket-client --with numpy ps-mcp.py
+# Run directly for testing (from any directory)
+uv --directory mcp run ps-mcp.py
 
-# Run directly for testing
-uv run ps-mcp.py
+# Install for Claude Desktop
+uv run --directory mcp mcp install --with fonttools --with python-socketio --with mcp --with requests --with websocket-client --with numpy ps-mcp.py
+```
+
+When configuring `.mcp.json` for Claude Code, use `uv --directory` instead of `cwd` (Claude Code does not honor `cwd`):
+
+```json
+{
+  "command": "uv",
+  "args": ["--directory", "/absolute/path/to/adb-mcp/mcp", "run", "ps-mcp.py"],
+  "type": "stdio"
+}
 ```
 
 ### Proxy Server
 
+The proxy auto-launches when the MCP server starts (via `proxy_manager.py`). Manual start is only needed for standalone testing:
+
 ```bash
 cd adb-proxy-socket && node proxy.js
-# Or use prebuilt executables from GitHub releases
 ```
 
 ### Python Dependencies
@@ -77,6 +88,13 @@ cd adb-proxy-socket && npm install
 - Plugin responses include `status` ("SUCCESS" or "FAILURE"), current `document` info, `layers` tree, and `hasActiveSelection`.
 - `execute_script` sends arbitrary JS code to Photoshop's UXP runtime via the `executeScript` handler. `call_batch_play_command` sends raw batchPlay descriptors. Both are in `ps-mcp.py`.
 - Input validation (`validators.py`, `path_validator.py`) applies to curated tools only — REPL tools are intentionally exempt.
+
+## Gotchas
+
+- **stdout buffering**: `ps-mcp.py` must call `sys.stdout.reconfigure(write_through=True)` before any MCP interaction. Without this, JSON-RPC responses are buffered when stdout is a pipe (Claude Code's stdio transport) and never reach the client.
+- **Proxy auto-launch**: The MCP server starts the proxy automatically. Trying to start a second proxy manually will fail with `EADDRINUSE`. Use `lsof -ti :3001 | xargs kill` to stop a running proxy before restarting.
+- **UXP network permissions**: The plugin manifest must include both `http://localhost:3001` and `ws://localhost:3001` in its network domains. Missing the `ws://` entry causes silent websocket connection timeouts.
+- **UXP transport**: The plugin uses `["polling", "websocket"]` transport order (not websocket-only) because some UXP environments block direct websocket upgrades.
 
 ## Related Docs
 
