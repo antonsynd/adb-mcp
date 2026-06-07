@@ -11,10 +11,11 @@
     "photoshop-mcp": {
       "command": "uv",
       "args": [
+        "--directory",
+        "/Users/anton/github/adb-mcp/mcp",
         "run",
         "ps-mcp.py"
       ],
-      "cwd": "/Users/anton/Documents/github/adb-mcp/mcp",
       "type": "stdio"
     }
   }

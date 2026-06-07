@@ -248,6 +248,18 @@ function sendToApplication(packet) {
 // Example: Use this function elsewhere in your code
 // sendToApplication('photoshop', { message: 'Update available' });
 
+server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+        logError(`Port ${PORT} is already in use.`);
+        logError("Another proxy instance is likely running (auto-launched by the MCP server).");
+        logError("To restart: kill the existing process first, then retry.");
+        logError(`  lsof -ti :${PORT} | xargs kill`);
+    } else {
+        logError(`Server error: ${err.message}`);
+    }
+    process.exit(1);
+});
+
 server.listen(PORT, "127.0.0.1", () => {
     logInfo(`adb-mcp Command proxy server running on ws://localhost:${PORT}`);
 });

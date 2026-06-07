@@ -24,6 +24,10 @@ import base64
 import os
 import sys
 
+# Force unbuffered stdout so JSON-RPC responses reach the MCP client
+# immediately when stdout is a pipe (e.g. Claude Code stdio transport).
+sys.stdout.reconfigure(write_through=True)
+
 import numpy as np
 
 import socket_client
