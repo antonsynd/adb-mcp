@@ -16,19 +16,19 @@
       "id": "vanilla",
       "minimumSize": {
         "width": 300,
-        "height": 200
+        "height": 280
       },
       "maximumSize": {
-        "width": 300,
-        "height": 200
+        "width": 600,
+        "height": 800
       },
       "preferredDockedSize": {
         "width": 300,
-        "height": 200
+        "height": 450
       },
       "preferredFloatingSize": {
         "width": 300,
-        "height": 200
+        "height": 450
       },
       "icons": [
         {
@@ -71,7 +71,7 @@
   ],
   "requiredPermissions": {
     "network": {
-      "domains": ["http://localhost:3001"]
+      "domains": ["http://localhost:3001", "ws://localhost:3001"]
     },
     "localFileSystem": "fullAccess"
   },
